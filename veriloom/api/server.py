@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from veriloom.repository_intelligence import RepositoryIntelligenceEngine
@@ -25,6 +26,15 @@ class RunPipelineRequest(BaseModel):
     repo_path: str = "."
     candidate_index: int = 0
     custom_task_id: Optional[str] = None
+
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
+def get_dashboard():
+    dashboard_file = Path(__file__).parent / "dashboard.html"
+    if dashboard_file.exists():
+        return HTMLResponse(content=dashboard_file.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>VeriLoom Dashboard</h1><p>Dashboard template not found.</p>")
 
 
 @app.get("/api/status")

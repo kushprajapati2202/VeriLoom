@@ -98,6 +98,16 @@ def verify_package(package_dir):
         raise click.Abort()
 
 
+@cli.command()
+@click.option("--host", default="127.0.0.1", help="Host interface to bind.")
+@click.option("--port", default=8000, help="Port to listen on.")
+def serve(host, port):
+    """Launch the VeriLoom interactive web dashboard and API server."""
+    import uvicorn
+    click.echo(f"[*] Starting VeriLoom Web Dashboard at http://{host}:{port}")
+    uvicorn.run("veriloom.api.server:app", host=host, port=port, reload=False)
+
+
 def main():
     cli()
 
