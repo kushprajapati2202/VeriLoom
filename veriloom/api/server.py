@@ -1,7 +1,7 @@
 """FastAPI REST server for VeriLoom AI dashboard and control centre."""
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -10,6 +10,7 @@ from veriloom.repository_intelligence import RepositoryIntelligenceEngine
 from veriloom.task_generation import CandidateOpportunityEngine
 from veriloom.orchestrator import VeriLoomPipeline
 from veriloom.packaging import PackageVerifier
+from veriloom.benchmark import BenchmarkRunner
 
 app = FastAPI(
     title="VeriLoom AI API",
@@ -95,4 +96,40 @@ def list_packages(export_dir: str = "exports"):
             is_valid, _ = PackageVerifier.verify_checksums(d)
             packages.append({"package_id": d.name, "path": str(d), "is_valid": is_valid})
     return {"packages": packages}
+
+
+class BenchmarkEvaluateRequest(BaseModel):
+    package_dir: str
+    solution_code: str
+    model_name: str = "EvaluatedModel"
+
+
+class BenchmarkCompareRequest(BaseModel):
+    package_dir: str
+    submissions: Dict[str, str]
+
+
+@app.post("/api/benchmark/evaluate")
+def evaluate_benchmark(req: BenchmarkEvaluateRequest):
+    pkg = Path(req.package_dir).resolve()
+    if not pkg.exists():
+        raise HTTPException(status_code=404, detail="Task package not found")
+    try:
+        res = BenchmarkRunner.evaluate_solution(pkg, req.solution_code, model_name=req.model_name)
+        return res.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/benchmark/compare")
+def compare_benchmark(req: BenchmarkCompareRequest):
+    pkg = Path(req.package_dir).resolve()
+    if not pkg.exists():
+        raise HTTPException(status_code=404, detail="Task package not found")
+    try:
+        report = BenchmarkRunner.compare_models(pkg, req.submissions)
+        return report.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 

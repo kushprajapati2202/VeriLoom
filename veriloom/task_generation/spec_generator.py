@@ -1,6 +1,8 @@
 """Task Specification Generator synthesizing grounded benchmark tasks."""
 
+import json
 import uuid
+from pathlib import Path
 from typing import List, Optional
 
 from veriloom.contracts.repository import SourceEvidence
@@ -13,6 +15,7 @@ from veriloom.contracts.task_spec import (
     TaskDifficulty,
 )
 from veriloom.task_generation.candidate_engine import CandidateOpportunity
+from veriloom.llm import LLMFactory, LLMProvider, OfflineFallbackProvider, TASK_SPECIFICATION_PROMPT
 
 
 class TaskSpecGenerator:
@@ -25,10 +28,71 @@ class TaskSpecGenerator:
         repository_id: str,
         starting_commit: str,
         task_id: Optional[str] = None,
+        llm_provider: Optional[LLMProvider] = None,
+        repo_root: Optional[Path] = None,
     ) -> TaskSpecification:
         tid = task_id or f"task_{uuid.uuid4().hex[:6]}"
         target_file = opportunity.target_evidence[0].path if opportunity.target_evidence else "src/main.py"
         symbol_name = opportunity.target_evidence[0].symbol if opportunity.target_evidence else "core_logic"
+
+        provider = llm_provider or LLMFactory.get_provider()
+
+        # Dynamic LLM generation path
+        if not isinstance(provider, OfflineFallbackProvider):
+            try:
+                root = repo_root or Path.cwd()
+                src_path = root / target_file
+                excerpt = src_path.read_text(encoding="utf-8", errors="ignore")[:2500] if src_path.exists() else ""
+
+                prompt = TASK_SPECIFICATION_PROMPT.format(
+                    repo_name=repository_id,
+                    target_file=target_file,
+                    source_excerpt=excerpt,
+                    feature_family=opportunity.feature_family.value,
+                    difficulty=opportunity.difficulty.value,
+                )
+                data = provider.generate_json(prompt)
+
+                reqs = [
+                    Requirement(
+                        id=r.get("id", f"REQ-{i+1:03d}"),
+                        statement=r["statement"],
+                        acceptance_criteria=r.get("acceptance_criteria", []),
+                        priority=PriorityLevel(r.get("priority", "must").lower()),
+                    )
+                    for i, r in enumerate(data.get("requirements", []))
+                ]
+                if reqs:
+                    test_items = [
+                        TestPlanItem(
+                            test_id=f"TEST-{i+1:03d}",
+                            requirement_id=reqs[i % len(reqs)].id,
+                            scenario=f"Validate {reqs[i % len(reqs)].id}",
+                            test_type="happy_path" if i == 0 else "boundary",
+                            expected_outcome="Observed criteria match",
+                        )
+                        for i in range(max(2, len(reqs)))
+                    ]
+                    return TaskSpecification(
+                        task_id=tid,
+                        title=data.get("title", opportunity.title),
+                        summary=data.get("summary", opportunity.summary),
+                        repository_id=repository_id,
+                        starting_commit=starting_commit,
+                        feature_family=opportunity.feature_family,
+                        difficulty=opportunity.difficulty,
+                        requirements=reqs,
+                        constraints=data.get("constraints", [f"Must maintain backward compatibility with {symbol_name}."]),
+                        out_of_scope=data.get("out_of_scope", ["External database migrations."]),
+                        edge_cases=data.get("edge_cases", ["Null or boundary values."]),
+                        assumptions=data.get("assumptions", ["Thread-safe execution environment."]),
+                        repository_evidence=opportunity.target_evidence,
+                        test_plan=test_items,
+                        known_limitations=["Generated via dynamic LLM provider."],
+                    )
+            except Exception as e:
+                # Graceful fallback to deterministic generator if LLM fails or times out
+                pass
 
         # Generate domain-specific requirements based on feature family
         if opportunity.feature_family == FeatureFamily.DATA_VALIDATION:

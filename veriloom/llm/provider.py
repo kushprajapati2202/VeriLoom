@@ -191,3 +191,4 @@ class OllamaProvider(LLMProvider):
             resp.raise_for_status()
             data = resp.json()
             return data["response"]
+

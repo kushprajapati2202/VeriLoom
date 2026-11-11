@@ -52,3 +52,4 @@ class LLMFactory:
 
         # 2. Default to deterministic offline fallback
         return OfflineFallbackProvider()
+
