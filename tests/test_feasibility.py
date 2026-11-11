@@ -1,13 +1,13 @@
 """Unit tests for the feasibility and grounding gate."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
-from codeforge.feasibility import FeasibilityGate
-from codeforge.contracts.repository import SourceEvidence
+from veriloom.feasibility import FeasibilityGate
+from veriloom.contracts.repository import SourceEvidence
 
 
 def test_feasibility_gate_passes_grounded_spec():
@@ -43,3 +43,4 @@ def test_feasibility_gate_rejects_hallucinated_file():
     report = FeasibilityGate.evaluate(spec, root)
     assert report.is_feasible is False
     assert any(v.category == "missing_file" for v in report.violations)
+

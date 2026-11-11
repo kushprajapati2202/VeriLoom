@@ -1,12 +1,12 @@
 """Unit tests for variation and novelty engine."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
-from codeforge.variation import VariationEngine, VariationMetrics
+from veriloom.variation import VariationEngine, VariationMetrics
 
 
 def test_variation_metrics_jaccard_and_cosine():
@@ -37,3 +37,4 @@ def test_variation_engine_distinct_tasks():
     report2 = VariationEngine.evaluate_variation(spec2, [spec1])
     assert len(report2.comparison_catalogue) == 1
     assert report2.novelty_assessment.overall_novelty_score >= 0.35
+

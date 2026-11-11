@@ -1,4 +1,4 @@
-# VeriLoom (CodeForge AI)
+# VeriLoom
 
 > **Repository-Aware Coding Task Factory & Benchmark Validation Platform**
 
@@ -64,17 +64,17 @@ VeriLoom provides a comprehensive CLI for running individual stages or the entir
 
 ### 1. Inspect Repository & Pin Commit
 ```bash
-python -m codeforge.cli.main inspect
+python -m veriloom.cli.main inspect
 ```
 
 ### 2. Discover Grounded Feature Opportunities
 ```bash
-python -m codeforge.cli.main opportunities
+python -m veriloom.cli.main opportunities
 ```
 
 ### 3. Run End-to-End Pipeline & Generate Validated Package
 ```bash
-python -m codeforge.cli.main run-pipeline --candidate-index 0
+python -m veriloom.cli.main run-pipeline --candidate-index 0
 ```
 
 ### 4. Independent Package Replay & Verification
@@ -88,7 +88,7 @@ python scripts/replay_package.py --package ./exports/pkg_task_18366f
 
 Launch the FastAPI control centre backend:
 ```bash
-uvicorn codeforge.api.server:app --reload --port 8000
+uvicorn veriloom.api.server:app --reload --port 8000
 ```
 Interactive API documentation available at `http://localhost:8000/docs`.
 

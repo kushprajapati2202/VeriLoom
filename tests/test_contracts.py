@@ -1,9 +1,9 @@
-"""Unit tests for CodeForge AI contracts."""
+"""Unit tests for VeriLoom AI contracts."""
 
 import pytest
 from pydantic import ValidationError
 
-from codeforge.contracts import (
+from veriloom.contracts import (
     RepositoryRecord,
     SourceEvidence,
     TaskSpecification,

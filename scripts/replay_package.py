@@ -13,11 +13,11 @@ from pathlib import Path
 root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root))
 
-from codeforge.packaging.verifier import PackageVerifier
+from veriloom.packaging.verifier import PackageVerifier
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Replay and verify CodeForge AI task packages.")
+    parser = argparse.ArgumentParser(description="Replay and verify VeriLoom AI task packages.")
     parser.add_argument(
         "--package",
         required=True,
@@ -43,3 +43,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

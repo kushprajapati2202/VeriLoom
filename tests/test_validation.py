@@ -1,15 +1,15 @@
 """Unit tests for validation runner and mutation engine."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
-from codeforge.reference_solution import ReferenceSolutionAgent
-from codeforge.test_generation import FeatureTestGenerator
-from codeforge.validation import ValidationRunner, MutationEngine
-from codeforge.contracts.validation import MutantStatus
+from veriloom.reference_solution import ReferenceSolutionAgent
+from veriloom.test_generation import FeatureTestGenerator
+from veriloom.validation import ValidationRunner, MutationEngine
+from veriloom.contracts.validation import MutantStatus
 
 
 def test_mutation_engine_kills_faulty_mutants():
@@ -35,3 +35,4 @@ def test_mutation_engine_kills_faulty_mutants():
     finally:
         if test_path.exists():
             test_path.unlink()
+

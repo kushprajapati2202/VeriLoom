@@ -1,15 +1,15 @@
-"""End-to-end integration test for CodeForgePipeline."""
+"""End-to-end integration test for VeriLoomPipeline."""
 
 import tempfile
 from pathlib import Path
-from codeforge.orchestrator import CodeForgePipeline
+from veriloom.orchestrator import VeriLoomPipeline
 
 
 def test_pipeline_end_to_end_run():
     root = Path(__file__).parent.parent
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_base = Path(tmp_dir)
-        pipeline = CodeForgePipeline(root, tmp_base)
+        pipeline = VeriLoomPipeline(root, tmp_base)
 
         result = pipeline.run_end_to_end(candidate_index=0, custom_task_id="task_e2e_001")
 

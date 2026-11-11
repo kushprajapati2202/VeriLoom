@@ -1,12 +1,12 @@
 """Unit tests for reference solution agent and patch manager."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
-from codeforge.reference_solution import (
+from veriloom.reference_solution import (
     PatchManager,
     ReferenceSolutionAgent,
 )
@@ -32,3 +32,4 @@ def test_reference_solution_agent():
     assert res.task_id == spec.task_id
     assert len(res.patch_diff) > 0
     assert "REQ-001" in res.requirement_mapping
+

@@ -1,7 +1,7 @@
 """Unit tests for repository intelligence engine."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import (
+from veriloom.repository_intelligence import (
     GitOps,
     StackDetector,
     ASTAnalyzer,
@@ -30,7 +30,7 @@ def test_stack_detector_current_repo():
 def test_ast_analyzer_extracts_symbols():
     root = Path(__file__).parent.parent
     files, symbols, test_files = ASTAnalyzer.analyze_repository(root)
-    assert any("codeforge/contracts" in f for f in files)
+    assert any("veriloom/contracts" in f for f in files)
     assert any("RepositoryRecord" in (s.symbol or "") for s in symbols)
     assert any("test_contracts.py" in t for t in test_files)
 
@@ -46,3 +46,4 @@ def test_engine_ingest_and_capability_map():
     assert cap_map.repository_id == record.repository_id
     assert cap_map.starting_commit == record.starting_commit
     assert len(cap_map.candidate_extension_points) > 0
+

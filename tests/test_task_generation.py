@@ -1,8 +1,8 @@
 """Unit tests for task opportunity and specification generation."""
 
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
@@ -32,3 +32,4 @@ def test_spec_generation_structure():
     assert len(spec.requirements) >= 2
     assert len(spec.test_plan) >= 2
     assert len(spec.repository_evidence) > 0
+

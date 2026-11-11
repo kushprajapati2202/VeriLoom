@@ -2,16 +2,16 @@
 
 import tempfile
 from pathlib import Path
-from codeforge.repository_intelligence import RepositoryIntelligenceEngine
-from codeforge.task_generation import (
+from veriloom.repository_intelligence import RepositoryIntelligenceEngine
+from veriloom.task_generation import (
     CandidateOpportunityEngine,
     TaskSpecGenerator,
 )
-from codeforge.reference_solution import ReferenceSolutionAgent
-from codeforge.test_generation import FeatureTestGenerator
-from codeforge.validation import ValidationRunner
-from codeforge.variation import VariationEngine
-from codeforge.packaging import PackageBuilder, PackageVerifier
+from veriloom.reference_solution import ReferenceSolutionAgent
+from veriloom.test_generation import FeatureTestGenerator
+from veriloom.validation import ValidationRunner
+from veriloom.variation import VariationEngine
+from veriloom.packaging import PackageBuilder, PackageVerifier
 
 
 def test_package_builder_and_verification():
@@ -46,3 +46,4 @@ def test_package_builder_and_verification():
         is_valid, errors = PackageVerifier.verify_checksums(pkg_dir)
         assert is_valid is True
         assert len(errors) == 0
+
