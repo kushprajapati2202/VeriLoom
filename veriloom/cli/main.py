@@ -99,6 +99,32 @@ def verify_package(package_dir):
 
 
 @cli.command()
+@click.option("--package", required=True, type=click.Path(exists=True), help="Path to exported task package.")
+@click.option("--solution", required=True, help="Python code string or patch file path.")
+@click.option("--model", default="EvaluatedModel", help="Model or candidate identifier.")
+def benchmark(package, solution, model):
+    """Evaluate an AI coding model's solution against a verified task package."""
+    from veriloom.benchmark import BenchmarkRunner
+    pkg_path = Path(package).resolve()
+
+    # Check if solution is a file path
+    sol_content = solution
+    if Path(solution).exists():
+        sol_content = Path(solution).read_text(encoding="utf-8")
+
+    click.echo(f"[*] Benchmarking '{model}' against package {pkg_path.name}...")
+    result = BenchmarkRunner.evaluate_solution(pkg_path, sol_content, model_name=model)
+
+    click.echo(f"\n[BENCHMARK RESULT]")
+    click.echo(f"  - Model:            {result.model_name}")
+    click.echo(f"  - Verdict:          {result.verdict.value}")
+    click.echo(f"  - Feature Tests:    {'PASSED' if result.feature_tests_passed else 'FAILED'}")
+    click.echo(f"  - Regression Suite: {'CLEAN' if result.regression_clean else 'BROKEN'}")
+    click.echo(f"  - Failure Category: {result.failure_category.value}")
+    click.echo(f"  - Latency:          {result.execution_time_ms} ms")
+
+
+@cli.command()
 @click.option("--host", default="127.0.0.1", help="Host interface to bind.")
 @click.option("--port", default=8000, help="Port to listen on.")
 def serve(host, port):
