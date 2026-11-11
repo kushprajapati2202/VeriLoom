@@ -63,3 +63,4 @@ class TaskSpecification(BaseModel):
     )
     test_plan: List[TestPlanItem] = Field(default_factory=list, description="Planned test scenarios")
     known_limitations: List[str] = Field(default_factory=list, description="Acknowledged scope limitations")
+

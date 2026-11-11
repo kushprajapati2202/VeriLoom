@@ -85,3 +85,4 @@ def test_package_manifest_checksums():
     )
     assert manifest.package_id == "pkg_001"
     assert manifest.verdict.reference_solution_passes is True
+

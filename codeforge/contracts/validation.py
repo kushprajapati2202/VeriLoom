@@ -65,3 +65,4 @@ class ValidationReport(BaseModel):
     mutation_checks: List[MutationCheck] = Field(default_factory=list)
     regression_summary: RegressionSummary = Field(default_factory=RegressionSummary)
     limitations: List[str] = Field(default_factory=list)
+

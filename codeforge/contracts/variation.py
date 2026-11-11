@@ -30,3 +30,4 @@ class VariationReport(BaseModel):
     behavioural_tags: List[str] = Field(default_factory=list)
     comparison_catalogue: List[CatalogueComparison] = Field(default_factory=list)
     novelty_assessment: NoveltyAssessment
+
