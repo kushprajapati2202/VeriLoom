@@ -58,6 +58,53 @@ pytest
 
 ---
 
+## CLI Usage
+
+VeriLoom provides a comprehensive CLI for running individual stages or the entire end-to-end factory:
+
+### 1. Inspect Repository & Pin Commit
+```bash
+python -m codeforge.cli.main inspect
+```
+
+### 2. Discover Grounded Feature Opportunities
+```bash
+python -m codeforge.cli.main opportunities
+```
+
+### 3. Run End-to-End Pipeline & Generate Validated Package
+```bash
+python -m codeforge.cli.main run-pipeline --candidate-index 0
+```
+
+### 4. Independent Package Replay & Verification
+```bash
+python scripts/replay_package.py --package ./exports/pkg_task_18366f
+```
+
+---
+
+## REST API Server
+
+Launch the FastAPI control centre backend:
+```bash
+uvicorn codeforge.api.server:app --reload --port 8000
+```
+Interactive API documentation available at `http://localhost:8000/docs`.
+
+---
+
+## Quality Gates Enforced
+
+- **Grounding Gate**: Rejects any candidate task lacking verified AST symbol evidence.
+- **Feasibility Gate**: Enforces unambiguous acceptance criteria and maps every requirement to tests.
+- **Regression Protection**: Ensures 0 newly introduced failures on baseline test suites.
+- **Controlled Fault Injection**: Tests reference solutions against synthesized mutants (operator inversions, boundary shifts, condition omissions) to prove tests catch defects.
+- **Behavioural Variation**: Computes 4-factor distance $D(T_A, T_B)$ to reject cosmetic paraphrases.
+- **Package Integrity**: Pinned commit metadata, patches, tests, and validation logs with SHA-256 verification.
+
+---
+
 ## License
 MIT License.
 

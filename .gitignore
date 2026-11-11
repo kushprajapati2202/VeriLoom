@@ -60,5 +60,6 @@ Thumbs.db
 # Pipeline temp artifacts & logs
 tmp/
 temp/
+exports/
 logs/*.log
 *.log
