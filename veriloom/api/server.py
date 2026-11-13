@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 
 load_dotenv()
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from veriloom.repository_intelligence import RepositoryIntelligenceEngine
@@ -43,6 +43,9 @@ class RunPipelineRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/index.html", response_class=HTMLResponse)
+@app.get("/index", response_class=HTMLResponse)
+@app.get("/home", response_class=HTMLResponse)
 @app.get("/api/index.py", response_class=HTMLResponse)
 @app.get("/api/index", response_class=HTMLResponse)
 def get_dashboard():
@@ -52,7 +55,14 @@ def get_dashboard():
     return HTMLResponse(content="<h1>VeriLoom Dashboard</h1><p>Dashboard template not found.</p>")
 
 
+@app.get("/favicon.ico")
+def get_favicon():
+    return Response(status_code=204)
+
+
 @app.get("/api/status")
+@app.get("/api/health")
+@app.get("/health")
 def get_status():
     return {
         "status": "online",
