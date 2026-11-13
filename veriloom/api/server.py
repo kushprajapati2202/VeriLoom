@@ -2,7 +2,10 @@
 
 from pathlib import Path
 from typing import Dict, List, Optional
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+
+load_dotenv()
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 

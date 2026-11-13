@@ -3,6 +3,9 @@
 import json
 from pathlib import Path
 import click
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from veriloom.repository_intelligence import RepositoryIntelligenceEngine
 from veriloom.task_generation import CandidateOpportunityEngine, TaskSpecGenerator
