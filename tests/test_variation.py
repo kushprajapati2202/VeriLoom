@@ -28,8 +28,11 @@ def test_variation_engine_distinct_tasks():
     cap_map = RepositoryIntelligenceEngine.build_capability_map(root, record.repository_id, record.starting_commit)
 
     opps = CandidateOpportunityEngine.discover_opportunities(cap_map)
-    spec1 = TaskSpecGenerator.generate_from_opportunity(opps[0], record.repository_id, record.starting_commit, "task_001")
-    spec2 = TaskSpecGenerator.generate_from_opportunity(opps[1], record.repository_id, record.starting_commit, "task_002")
+    opp1 = opps[0]  # business_rules
+    opp_diff = next(o for o in opps if o.feature_family != opp1.feature_family)  # data_validation / state_transitions
+
+    spec1 = TaskSpecGenerator.generate_from_opportunity(opp1, record.repository_id, record.starting_commit, "task_001")
+    spec2 = TaskSpecGenerator.generate_from_opportunity(opp_diff, record.repository_id, record.starting_commit, "task_002")
 
     report1 = VariationEngine.evaluate_variation(spec1, [])
     assert report1.novelty_assessment.is_meaningfully_novel is True
@@ -37,4 +40,5 @@ def test_variation_engine_distinct_tasks():
     report2 = VariationEngine.evaluate_variation(spec2, [spec1])
     assert len(report2.comparison_catalogue) == 1
     assert report2.novelty_assessment.overall_novelty_score >= 0.35
+    assert report2.novelty_assessment.is_meaningfully_novel is True
 
