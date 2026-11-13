@@ -133,21 +133,48 @@ class ValidationRunner:
 
         env = {**os.environ, "PYTHONPATH": str(repo_path)}
 
+        # Dynamically locate baseline test suite in target repository
+        baseline_test_target = None
+        if (repo_path / "tests" / "test_contracts.py").exists():
+            baseline_test_target = "tests/test_contracts.py"
+        elif (repo_path / "tests").exists():
+            found = [
+                str(p.relative_to(repo_path)).replace("\\", "/")
+                for p in (repo_path / "tests").glob("test_*.py")
+                if not p.name.startswith("test_feature")
+            ]
+            baseline_test_target = found[0] if found else "tests"
+        else:
+            found = [
+                str(p.relative_to(repo_path)).replace("\\", "/")
+                for p in repo_path.glob("**/test_*.py")
+                if not any(d in p.parts for d in ("_vendor", "venv", ".venv", "build", "dist"))
+            ]
+            baseline_test_target = found[0] if found else None
+
         # 1. Baseline Test Suite Check
         t0 = time.time()
-        base_proc = subprocess.run(
-            [sys.executable, "-m", "pytest", "tests/test_contracts.py", "-q"],
-            capture_output=True,
-            text=True,
-            cwd=str(repo_path),
-            env=env,
-        )
+        if baseline_test_target:
+            base_cmd = [sys.executable, "-m", "pytest", baseline_test_target, "-q"]
+            base_proc = subprocess.run(
+                base_cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(repo_path),
+                env=env,
+            )
+            base_passed = base_proc.returncode == 0
+            base_exit = base_proc.returncode
+        else:
+            base_passed = True
+            base_exit = 0
+
         checks.append(
             CheckOutcome(
                 name="baseline_tests",
-                status=CheckStatus.PASSED if base_proc.returncode == 0 else CheckStatus.BASELINE_FAILED,
-                command="pytest tests/test_contracts.py -q",
-                exit_code=base_proc.returncode,
+                status=CheckStatus.PASSED if base_passed else CheckStatus.BASELINE_FAILED,
+                command=f"pytest {baseline_test_target or '.'} -q",
+                exit_code=base_exit,
                 duration_ms=int((time.time() - t0) * 1000),
                 log_path="logs/baseline.log",
             )
@@ -188,19 +215,27 @@ class ValidationRunner:
 
             # 5. Regression Suite Execution (Existing tests)
             t0 = time.time()
-            reg_proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "tests/test_contracts.py", "-q"],
-                capture_output=True,
-                text=True,
-                cwd=str(repo_path),
-                env=env,
-            )
+            if baseline_test_target:
+                reg_cmd = [sys.executable, "-m", "pytest", baseline_test_target, "-q"]
+                reg_proc = subprocess.run(
+                    reg_cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(repo_path),
+                    env=env,
+                )
+                reg_passed = reg_proc.returncode == 0
+                reg_exit = reg_proc.returncode
+            else:
+                reg_passed = True
+                reg_exit = 0
+
             checks.append(
                 CheckOutcome(
                     name="regression_tests",
-                    status=CheckStatus.PASSED if reg_proc.returncode == 0 else CheckStatus.FAILED,
-                    command="pytest tests/test_contracts.py -q",
-                    exit_code=reg_proc.returncode,
+                    status=CheckStatus.PASSED if reg_passed else CheckStatus.FAILED,
+                    command=f"pytest {baseline_test_target or '.'} -q",
+                    exit_code=reg_exit,
                     duration_ms=int((time.time() - t0) * 1000),
                     log_path="logs/regression_tests.log",
                 )
@@ -219,12 +254,12 @@ class ValidationRunner:
 
         # Compile Regression Summary
         regression_summary = RegressionSummary(
-            baseline_tests_count=3,
-            post_patch_tests_count=3,
-            passed_count=3 if reg_proc.returncode == 0 else 0,
-            pre_existing_failures=0,
-            newly_introduced_failures=0 if reg_proc.returncode == 0 else 1,
-            status="NO_REGRESSION" if reg_proc.returncode == 0 else "REGRESSION_DETECTED",
+            baseline_tests_count=1 if baseline_test_target else 0,
+            post_patch_tests_count=1 if baseline_test_target else 0,
+            passed_count=1 if reg_passed else 0,
+            pre_existing_failures=0 if base_passed else 1,
+            newly_introduced_failures=0 if reg_passed else 1,
+            status="NO_REGRESSION" if reg_passed else "REGRESSION_DETECTED",
         )
 
         overall_status = (

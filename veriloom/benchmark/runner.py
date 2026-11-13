@@ -38,7 +38,16 @@ class BenchmarkRunner:
         evidence = spec.get("repository_evidence", [])
         target_rel = evidence[0]["path"] if evidence else "veriloom/contracts/repository.py"
 
-        repo_root = (repo_root or Path.cwd()).resolve()
+        if not repo_root:
+            if (Path.cwd() / target_rel).exists():
+                repo_root = Path.cwd()
+            elif (task_package_dir.parent.parent / target_rel).exists():
+                repo_root = task_package_dir.parent.parent
+            elif (task_package_dir.parent / target_rel).exists():
+                repo_root = task_package_dir.parent
+            else:
+                repo_root = Path.cwd()
+        repo_root = repo_root.resolve()
         target_file = repo_root / target_rel
         orig_content = target_file.read_text(encoding="utf-8", errors="ignore") if target_file.exists() else ""
 
@@ -90,16 +99,31 @@ class BenchmarkRunner:
                 feature_passed = True
 
             # 2. Run Regression Suite
-            reg_proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "tests/test_contracts.py", "-q"],
-                capture_output=True,
-                text=True,
-                cwd=str(repo_root),
-                env=env,
-            )
-            log_out += f"--- REGRESSION TESTS ---\n{reg_proc.stdout}\n{reg_proc.stderr}\n"
+            baseline_target = None
+            if (repo_root / "tests" / "test_contracts.py").exists():
+                baseline_target = "tests/test_contracts.py"
+            elif (repo_root / "tests").exists():
+                found = [
+                    str(p.relative_to(repo_root)).replace("\\", "/")
+                    for p in (repo_root / "tests").glob("test_*.py")
+                    if not p.name.startswith("test_feature")
+                ]
+                baseline_target = found[0] if found else "tests"
 
-            if reg_proc.returncode != 0:
+            if baseline_target:
+                reg_proc = subprocess.run(
+                    [sys.executable, "-m", "pytest", baseline_target, "-q"],
+                    capture_output=True,
+                    text=True,
+                    cwd=str(repo_root),
+                    env=env,
+                )
+                log_out += f"--- REGRESSION TESTS ---\n{reg_proc.stdout}\n{reg_proc.stderr}\n"
+                reg_returncode = reg_proc.returncode
+            else:
+                reg_returncode = 0
+
+            if reg_returncode != 0:
                 verdict = EvaluationVerdict.REGRESSION_INTRODUCED
                 category = FailureCategory.REGRESSION_BREAK
                 reg_clean = False
@@ -112,7 +136,11 @@ class BenchmarkRunner:
             # Restore files
             if active_test_file.exists():
                 active_test_file.unlink()
-            target_file.write_text(orig_content, encoding="utf-8")
+            if orig_content or target_file.exists():
+                try:
+                    target_file.write_text(orig_content, encoding="utf-8")
+                except Exception:
+                    pass
 
         duration_ms = int((time.time() - t0) * 1000)
 

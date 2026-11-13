@@ -58,6 +58,8 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+test_repos/
+external_repos/
 *.swo
 
 # Pipeline temp artifacts & logs

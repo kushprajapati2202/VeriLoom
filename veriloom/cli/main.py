@@ -113,10 +113,12 @@ def verify_package(package_path, option_package_dir):
 @click.option("--package", required=True, type=click.Path(exists=True), help="Path to exported task package.")
 @click.option("--solution", required=True, help="Python code string or patch file path.")
 @click.option("--model", default="EvaluatedModel", help="Model or candidate identifier.")
-def benchmark(package, solution, model):
+@click.option("--repo-path", default=None, help="Path to target repository root if different from cwd.")
+def benchmark(package, solution, model, repo_path):
     """Evaluate an AI coding model's solution against a verified task package."""
     from veriloom.benchmark import BenchmarkRunner
     pkg_path = Path(package).resolve()
+    target_repo = Path(repo_path).resolve() if repo_path else None
 
     # Check if solution is a file path
     sol_content = solution
@@ -124,7 +126,7 @@ def benchmark(package, solution, model):
         sol_content = Path(solution).read_text(encoding="utf-8")
 
     click.echo(f"[*] Benchmarking '{model}' against package {pkg_path.name}...")
-    result = BenchmarkRunner.evaluate_solution(pkg_path, sol_content, model_name=model)
+    result = BenchmarkRunner.evaluate_solution(pkg_path, sol_content, model_name=model, repo_root=target_repo)
 
     click.echo(f"\n[BENCHMARK RESULT]")
     click.echo(f"  - Model:            {result.model_name}")
