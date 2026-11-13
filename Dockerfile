@@ -35,3 +35,4 @@ ENV PORT=8000
 
 # Run FastAPI dashboard and API server
 CMD ["sh", "-c", "uvicorn veriloom.api.server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
