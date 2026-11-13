@@ -64,17 +64,17 @@ VeriLoom provides a comprehensive CLI for running individual stages or the entir
 
 ### 1. Inspect Repository & Pin Commit
 ```bash
-python -m veriloom.cli.main inspect
+python -m veriloom inspect .
 ```
 
 ### 2. Discover Grounded Feature Opportunities
 ```bash
-python -m veriloom.cli.main opportunities
+python -m veriloom opportunities .
 ```
 
 ### 3. Run End-to-End Pipeline & Generate Validated Package
 ```bash
-python -m veriloom.cli.main run-pipeline --candidate-index 0
+python -m veriloom run-pipeline . --candidate-index 0
 ```
 
 ### 4. Independent Package Replay & Cryptographic Verification
@@ -83,23 +83,23 @@ python -m veriloom.cli.main run-pipeline --candidate-index 0
 python scripts/replay_package.py --package ./examples/sample_packages/pkg_task_48e3bf
 
 # Or verify any newly generated package:
-python -m veriloom.cli.main verify-package --package-dir ./exports/<pkg_dir>
+python -m veriloom verify-package --package-dir ./exports/<pkg_dir>
 ```
 
 ### 5. AI Coding Model Benchmarking & Evaluation Harness
 Score candidate AI coding models or agent patches against verified task packages with automated feature and regression tests:
 ```bash
 # Evaluate a passing candidate solution patch:
-python -m veriloom.cli.main benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution ./examples/sample_packages/pkg_task_48e3bf/reference/implementation.patch --model "gemini-2.5-pro"
+python -m veriloom benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution ./examples/sample_packages/pkg_task_48e3bf/reference/implementation.patch --model "gemini-2.5-pro"
 
 # Evaluate a faulty solution (demonstrating failure classification):
-python -m veriloom.cli.main benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution "def broken(): pass" --model "flawed-agent"
+python -m veriloom benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution "def broken(): pass" --model "flawed-agent"
 ```
 
 ### 6. Interactive Engineering Dashboard & REST API
 Launch the unified FastAPI control center and visual dashboard:
 ```bash
-python -m veriloom.cli.main serve --port 8000
+python -m veriloom serve --port 8000
 ```
 Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) in your browser for the real-time pipeline visualizer and task catalog. OpenAPI specifications are available at `http://127.0.0.1:8000/docs`.
 

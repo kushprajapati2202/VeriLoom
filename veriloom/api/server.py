@@ -86,15 +86,17 @@ def run_pipeline(req: RunPipelineRequest):
 
 @app.get("/api/packages")
 def list_packages(export_dir: str = "exports"):
-    path = Path(export_dir).resolve()
-    if not path.exists():
-        return {"packages": []}
-
+    candidate_dirs = [Path(export_dir).resolve(), Path("examples/sample_packages").resolve()]
     packages = []
-    for d in path.iterdir():
-        if d.is_dir() and (d / "manifest.json").exists():
-            is_valid, _ = PackageVerifier.verify_checksums(d)
-            packages.append({"package_id": d.name, "path": str(d), "is_valid": is_valid})
+    seen = set()
+
+    for p in candidate_dirs:
+        if p.exists() and p.is_dir():
+            for d in p.iterdir():
+                if d.is_dir() and (d / "manifest.json").exists() and d.name not in seen:
+                    is_valid, _ = PackageVerifier.verify_checksums(d)
+                    packages.append({"package_id": d.name, "path": str(d), "is_valid": is_valid})
+                    seen.add(d.name)
     return {"packages": packages}
 
 
