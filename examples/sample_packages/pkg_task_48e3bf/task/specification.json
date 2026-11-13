@@ -1,0 +1,83 @@
+{
+  "task_id": "task_48e3bf",
+  "title": "Implement stateful business policy evaluation in replay_package",
+  "summary": "Add configurable eligibility policies and threshold deductions around def main.",
+  "repository_id": "repo_innodata_ae4fbb",
+  "starting_commit": "477865c319077603122484dae46c1ec97b115a35",
+  "feature_family": "business_rules",
+  "difficulty": "intermediate",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "statement": "Evaluation logic in scripts/replay_package.py must apply configurable minimum threshold rules.",
+      "acceptance_criteria": [
+        "Entities strictly below the minimum threshold are rejected with an ELIGIBILITY_FAILED error.",
+        "Entities meeting or exceeding the threshold receive appropriate rule application.",
+        "Computed deductions must not result in negative final totals."
+      ],
+      "priority": "must"
+    },
+    {
+      "id": "REQ-002",
+      "statement": "Rule application must respect temporal expiration timestamps.",
+      "acceptance_criteria": [
+        "Expired rules are rejected with RULE_EXPIRED.",
+        "Active unexpired rules execute successfully."
+      ],
+      "priority": "must"
+    }
+  ],
+  "constraints": [
+    "Must maintain backward compatibility with existing def main callers.",
+    "Must execute entirely in-process without remote network calls.",
+    "Execution overhead per operation must remain under 15ms."
+  ],
+  "out_of_scope": [
+    "External database schema migrations or remote persistence.",
+    "Distributed lock managers or cross-process message brokers."
+  ],
+  "edge_cases": [
+    "Total exactly equal to minimum requirement threshold.",
+    "Zero total ($0.00).",
+    "Rule deduction amount exceeds entity subtotal."
+  ],
+  "assumptions": [
+    "Execution environment is thread-safe for local execution.",
+    "Configuration objects are supplied in-memory or via standard environment variables."
+  ],
+  "repository_evidence": [
+    {
+      "path": "scripts/replay_package.py",
+      "symbol": "def main",
+      "reason": "Top-level function main",
+      "line_start": 19,
+      "line_end": 41
+    }
+  ],
+  "test_plan": [
+    {
+      "test_id": "TEST-001",
+      "requirement_id": "REQ-001",
+      "scenario": "Total strictly below threshold",
+      "test_type": "boundary",
+      "expected_outcome": "ELIGIBILITY_FAILED error raised"
+    },
+    {
+      "test_id": "TEST-002",
+      "requirement_id": "REQ-001",
+      "scenario": "Total meets threshold exactly",
+      "test_type": "boundary",
+      "expected_outcome": "Rule applied and total updated"
+    },
+    {
+      "test_id": "TEST-003",
+      "requirement_id": "REQ-002",
+      "scenario": "Rule evaluated after expiration time",
+      "test_type": "invalid_input",
+      "expected_outcome": "RULE_EXPIRED error raised"
+    }
+  ],
+  "known_limitations": [
+    "Local single-process validation; cluster-level synchronisation is out of scope."
+  ]
+}

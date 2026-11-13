@@ -1,0 +1,21 @@
+[
+  {
+    "id": "REQ-001",
+    "statement": "Evaluation logic in scripts/replay_package.py must apply configurable minimum threshold rules.",
+    "acceptance_criteria": [
+      "Entities strictly below the minimum threshold are rejected with an ELIGIBILITY_FAILED error.",
+      "Entities meeting or exceeding the threshold receive appropriate rule application.",
+      "Computed deductions must not result in negative final totals."
+    ],
+    "priority": "must"
+  },
+  {
+    "id": "REQ-002",
+    "statement": "Rule application must respect temporal expiration timestamps.",
+    "acceptance_criteria": [
+      "Expired rules are rejected with RULE_EXPIRED.",
+      "Active unexpired rules execute successfully."
+    ],
+    "priority": "must"
+  }
+]

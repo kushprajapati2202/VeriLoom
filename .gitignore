@@ -10,6 +10,9 @@ docs/
 *.plan.md
 *.brief.md
 *.spec.md
+DEMO_SCRIPT.md
+SUBMISSION.md
+EVALUATION_REPORT.md
 
 # Python
 __pycache__/

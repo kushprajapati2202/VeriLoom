@@ -1,0 +1,22 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "criteria_total": 3,
+    "criteria_covered": 3,
+    "test_names": [
+      "test_req_001_threshold_rejection",
+      "test_req_001_threshold_acceptance",
+      "test_req_001_deduction_clamping"
+    ],
+    "status": "fully_covered"
+  },
+  {
+    "requirement_id": "REQ-002",
+    "criteria_total": 2,
+    "criteria_covered": 2,
+    "test_names": [
+      "test_req_002_expired_rule_rejected"
+    ],
+    "status": "fully_covered"
+  }
+]

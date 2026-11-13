@@ -1,0 +1,23 @@
+[
+  {
+    "test_id": "TEST-001",
+    "requirement_id": "REQ-001",
+    "scenario": "Total strictly below threshold",
+    "test_type": "boundary",
+    "expected_outcome": "ELIGIBILITY_FAILED error raised"
+  },
+  {
+    "test_id": "TEST-002",
+    "requirement_id": "REQ-001",
+    "scenario": "Total meets threshold exactly",
+    "test_type": "boundary",
+    "expected_outcome": "Rule applied and total updated"
+  },
+  {
+    "test_id": "TEST-003",
+    "requirement_id": "REQ-002",
+    "scenario": "Rule evaluated after expiration time",
+    "test_type": "invalid_input",
+    "expected_outcome": "RULE_EXPIRED error raised"
+  }
+]

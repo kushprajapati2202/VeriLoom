@@ -1,0 +1,22 @@
+--- a/scripts/replay_package.py
++++ b/scripts/replay_package.py
+@@ -44,3 +44,19 @@
+ if __name__ == "__main__":
+     main()
+ 
++
++
++# --- VeriLoom AI Reference Implementation: Configurable Eligibility Rules ---
++class EligibilityError(Exception):
++    pass
++
++class RuleExpiredError(Exception):
++    pass
++
++def evaluate_eligibility_policy(subtotal: float, min_threshold: float = 50.0, is_expired: bool = False) -> float:
++    if is_expired:
++        raise RuleExpiredError('Rule is expired')
++    if subtotal < min_threshold:
++        raise EligibilityError(f'Subtotal {subtotal} is below required threshold {min_threshold}')
++    deduction = 10.0
++    return max(0.0, subtotal - deduction)

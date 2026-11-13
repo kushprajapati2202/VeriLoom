@@ -1,0 +1,100 @@
+{
+  "task_id": "task_48e3bf",
+  "repository_commit": "477865c319077603122484dae46c1ec97b115a35",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "baseline_tests",
+      "status": "passed",
+      "command": "pytest tests/test_contracts.py -q",
+      "exit_code": 0,
+      "duration_ms": 2164,
+      "log_path": "logs/baseline.log"
+    },
+    {
+      "name": "feature_tests",
+      "status": "passed",
+      "command": "pytest tests/feature/test_business_rules.py -q",
+      "exit_code": 0,
+      "duration_ms": 2275,
+      "log_path": "logs/feature_tests.log"
+    },
+    {
+      "name": "regression_tests",
+      "status": "passed",
+      "command": "pytest tests/test_contracts.py -q",
+      "exit_code": 0,
+      "duration_ms": 2308,
+      "log_path": "logs/regression_tests.log"
+    }
+  ],
+  "acceptance_coverage": [
+    {
+      "requirement_id": "REQ-001",
+      "criteria_total": 3,
+      "criteria_covered": 3,
+      "test_names": [
+        "test_req_001_threshold_rejection",
+        "test_req_001_threshold_acceptance",
+        "test_req_001_deduction_clamping"
+      ],
+      "status": "fully_covered"
+    },
+    {
+      "requirement_id": "REQ-002",
+      "criteria_total": 2,
+      "criteria_covered": 2,
+      "test_names": [
+        "test_req_002_expired_rule_rejected"
+      ],
+      "status": "fully_covered"
+    }
+  ],
+  "mutation_checks": [
+    {
+      "mutant_id": "MUT-001",
+      "description": "Inverted threshold operator (strictly greater required)",
+      "fault_type": "operator_inversion",
+      "target_file": "scripts/replay_package.py",
+      "line_modified": null,
+      "expected_killing_test": "test_req_001_threshold_acceptance",
+      "actual_killing_test": "test_req_001_threshold_acceptance",
+      "status": "KILLED",
+      "explanation": null
+    },
+    {
+      "mutant_id": "MUT-002",
+      "description": "Condition omission: ignored rule expiration timestamp",
+      "fault_type": "condition_omission",
+      "target_file": "scripts/replay_package.py",
+      "line_modified": null,
+      "expected_killing_test": "test_req_002_expired_rule_rejected",
+      "actual_killing_test": "test_req_002_expired_rule_rejected",
+      "status": "KILLED",
+      "explanation": null
+    },
+    {
+      "mutant_id": "MUT-003",
+      "description": "Removed clamping: negative totals allowed",
+      "fault_type": "boundary_shift",
+      "target_file": "scripts/replay_package.py",
+      "line_modified": null,
+      "expected_killing_test": "test_req_001_deduction_clamping",
+      "actual_killing_test": "test_req_001_deduction_clamping",
+      "status": "KILLED",
+      "explanation": null
+    }
+  ],
+  "regression_summary": {
+    "baseline_tests_count": 3,
+    "post_patch_tests_count": 3,
+    "passed_count": 3,
+    "pre_existing_failures": 0,
+    "newly_introduced_failures": 0,
+    "status": "NO_REGRESSION"
+  },
+  "limitations": [
+    "Controlled fault injection achieved 100.0% kill rate on synthetically injected mutants.",
+    "Isolated execution evaluated in in-memory working copy."
+  ]
+}

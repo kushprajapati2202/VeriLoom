@@ -1,0 +1,16 @@
+{
+  "task_id": "task_48e3bf",
+  "feature_family": "business_rules",
+  "difficulty": "intermediate",
+  "behavioural_tags": [
+    "business_rules",
+    "spending_threshold",
+    "state_transition_machine"
+  ],
+  "comparison_catalogue": [],
+  "novelty_assessment": {
+    "overall_novelty_score": 1.0,
+    "is_meaningfully_novel": true,
+    "justification": "First task in catalogue; sets baseline behavioural profile."
+  }
+}

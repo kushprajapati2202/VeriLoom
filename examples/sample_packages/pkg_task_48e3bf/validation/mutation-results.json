@@ -1,0 +1,35 @@
+[
+  {
+    "mutant_id": "MUT-001",
+    "description": "Inverted threshold operator (strictly greater required)",
+    "fault_type": "operator_inversion",
+    "target_file": "scripts/replay_package.py",
+    "line_modified": null,
+    "expected_killing_test": "test_req_001_threshold_acceptance",
+    "actual_killing_test": "test_req_001_threshold_acceptance",
+    "status": "KILLED",
+    "explanation": null
+  },
+  {
+    "mutant_id": "MUT-002",
+    "description": "Condition omission: ignored rule expiration timestamp",
+    "fault_type": "condition_omission",
+    "target_file": "scripts/replay_package.py",
+    "line_modified": null,
+    "expected_killing_test": "test_req_002_expired_rule_rejected",
+    "actual_killing_test": "test_req_002_expired_rule_rejected",
+    "status": "KILLED",
+    "explanation": null
+  },
+  {
+    "mutant_id": "MUT-003",
+    "description": "Removed clamping: negative totals allowed",
+    "fault_type": "boundary_shift",
+    "target_file": "scripts/replay_package.py",
+    "line_modified": null,
+    "expected_killing_test": "test_req_001_deduction_clamping",
+    "actual_killing_test": "test_req_001_deduction_clamping",
+    "status": "KILLED",
+    "explanation": null
+  }
+]
