@@ -20,6 +20,11 @@ dependencies = [
 [project.scripts]
 veriloom = "veriloom.cli.main:main"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["veriloom*"]
+exclude = ["api*", "exports*", "tests*", "scripts*", "examples*", "docs*"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
