@@ -25,6 +25,9 @@ where = ["."]
 include = ["veriloom*"]
 exclude = ["api*", "exports*", "tests*", "scripts*", "examples*", "docs*"]
 
+[tool.setuptools.package-data]
+"*" = ["*.html", "*.json"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
