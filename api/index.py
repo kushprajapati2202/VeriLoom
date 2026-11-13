@@ -11,3 +11,4 @@ sys.path.insert(0, str(project_root))
 from veriloom.api.server import app
 
 # Expose app for Vercel Python runtime
+
