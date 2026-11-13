@@ -87,10 +87,18 @@ def run_pipeline(repo_path, candidate_index, output_dir):
 
 
 @cli.command(name="verify-package")
-@click.argument("package_dir", type=click.Path(exists=True))
-def verify_package(package_dir):
+@click.argument("package_path", required=False, type=click.Path())
+@click.option("--package-dir", "-p", "option_package_dir", default=None, type=click.Path(), help="Path to exported task package.")
+def verify_package(package_path, option_package_dir):
     """Verify package SHA-256 checksums and manifest integrity."""
-    path = Path(package_dir).resolve()
+    target = package_path or option_package_dir
+    if not target:
+        click.echo("[ERROR] Please provide a package directory as an argument or via --package-dir", err=True)
+        raise click.Abort()
+    path = Path(target).resolve()
+    if not path.exists():
+        click.echo(f"[ERROR] Package directory does not exist: {path}", err=True)
+        raise click.Abort()
     is_valid, errors = PackageVerifier.verify_checksums(path)
     if is_valid:
         click.echo(f"[PASS] Package at {path} is verified and tamper-free.")

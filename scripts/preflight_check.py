@@ -39,6 +39,7 @@ def main():
             "--solution", "examples/sample_packages/pkg_task_48e3bf/reference/implementation.patch",
             "--model", "preflight-agent"
         ]),
+        ("FastAPI REST Endpoints & Dashboard", [sys.executable, "-m", "pytest", "tests/test_api_endpoints.py", "-q"]),
         ("Automated Core Test Suite", [sys.executable, "-m", "pytest", "tests/test_contracts.py", "tests/test_packaging.py", "-q"]),
     ]
 
