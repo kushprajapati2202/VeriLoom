@@ -105,6 +105,23 @@ Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) in your 
 
 ---
 
+## Cloud Deployment
+
+VeriLoom is pre-configured for 1-click cloud deployment:
+
+### 1. Deploy on Vercel
+1. Import `kushprajapati2202/VeriLoom` on [vercel.com](https://vercel.com).
+2. Vercel automatically detects `vercel.json` and `api/index.py`.
+3. Click **Deploy**. Your dashboard will be live at `https://<your-project>.vercel.app/dashboard`.
+
+### 2. Deploy via Docker (Render / Railway / Hugging Face Spaces)
+The repository includes a production-ready `Dockerfile` and `Procfile`:
+- **Render**: Create New Web Service $\to$ Select `kushprajapati2202/VeriLoom` $\to$ Deploy.
+- **Railway**: New Project $\to$ Deploy from GitHub repo $\to$ Generate Domain.
+- **Hugging Face Spaces**: Create Space $\to$ Choose Docker $\to$ Connect GitHub.
+
+---
+
 ## Quality Gates Enforced
 
 - **Grounding Gate**: Rejects any candidate task lacking verified AST symbol evidence.

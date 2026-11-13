@@ -40,6 +40,7 @@ def main():
             "--model", "preflight-agent"
         ]),
         ("FastAPI REST Endpoints & Dashboard", [sys.executable, "-m", "pytest", "tests/test_api_endpoints.py", "-q"]),
+        ("Vercel Serverless Entrypoint", [sys.executable, "-c", "import api.index; assert api.index.app.title"]),
         ("Automated Core Test Suite", [sys.executable, "-m", "pytest", "tests/test_contracts.py", "tests/test_packaging.py", "-q"]),
     ]
 
