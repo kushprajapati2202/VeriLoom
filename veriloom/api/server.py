@@ -34,6 +34,8 @@ class RunPipelineRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/api/index.py", response_class=HTMLResponse)
+@app.get("/api/index", response_class=HTMLResponse)
 def get_dashboard():
     dashboard_file = Path(__file__).parent / "dashboard.html"
     if dashboard_file.exists():

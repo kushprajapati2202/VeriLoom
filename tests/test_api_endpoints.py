@@ -18,6 +18,10 @@ def test_dashboard_and_root_endpoints():
     assert res_dash.status_code == 200
     assert "VeriLoom" in res_dash.text
 
+    res_vercel = client.get("/api/index.py")
+    assert res_vercel.status_code == 200
+    assert "VeriLoom" in res_vercel.text
+
 
 def test_status_endpoint():
     res = client.get("/api/status")
