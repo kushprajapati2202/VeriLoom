@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from veriloom.repository_intelligence import RepositoryIntelligenceEngine
 from veriloom.task_generation import CandidateOpportunityEngine
 from veriloom.orchestrator import VeriLoomPipeline
+from fastapi.middleware.cors import CORSMiddleware
 from veriloom.packaging import PackageVerifier
 from veriloom.benchmark import BenchmarkRunner
 
@@ -19,6 +20,14 @@ app = FastAPI(
     title="VeriLoom AI API",
     description="Repository-Aware Coding Task Factory & Benchmark Validation API",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -52,9 +61,12 @@ def get_status():
     }
 
 
-@app.post("/api/repository/inspect")
-def inspect_repository(req: InspectRequest):
-    path = Path(req.repo_path).resolve()
+@app.api_route("/api/repository/inspect", methods=["GET", "POST"])
+@app.api_route("/api/index.py/api/repository/inspect", methods=["GET", "POST"])
+@app.api_route("/api/index/api/repository/inspect", methods=["GET", "POST"])
+def inspect_repository(req: Optional[InspectRequest] = None):
+    raw_path = req.repo_path if req else "."
+    path = Path(raw_path).resolve()
     if not path.exists():
         raise HTTPException(status_code=404, detail="Repository path not found")
     record = RepositoryIntelligenceEngine.ingest(path)

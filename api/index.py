@@ -16,17 +16,17 @@ from veriloom.api.server import app
 @app.middleware("http")
 async def vercel_path_normalizer(request: Request, call_next):
     """Normalize paths rewritten by Vercel edge proxy."""
-    path = request.scope.get("path", "")
-
-    # Check for Vercel matched path header
-    matched = request.headers.get("x-matched-path")
-    if matched and not matched.startswith("/api/index"):
-        request.scope["path"] = matched
-    elif path in ("/api/index.py", "/api/index", "/api/index/"):
-        request.scope["path"] = "/"
-    elif path.startswith("/api/index.py/"):
-        request.scope["path"] = path[len("/api/index.py"):]
-    elif path.startswith("/api/index/"):
-        request.scope["path"] = path[len("/api/index"):]
+    for header in ("x-invoke-path", "x-matched-path", "x-forwarded-uri", "x-original-path"):
+        val = request.headers.get(header)
+        if val and not val.startswith("/api/index"):
+            request.scope["path"] = val
+            break
+    else:
+        path = request.scope.get("path", "")
+        for prefix in ("/api/index.py", "/api/index"):
+            if path.startswith(prefix):
+                remainder = path[len(prefix):]
+                request.scope["path"] = remainder if (remainder and remainder.startswith("/")) else ("/" + remainder if remainder else "/")
+                break
 
     return await call_next(request)
