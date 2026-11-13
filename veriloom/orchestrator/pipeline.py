@@ -1,5 +1,7 @@
 """End-to-end pipeline orchestrator for VeriLoom AI."""
 
+import os
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, Field
@@ -43,7 +45,23 @@ class VeriLoomPipeline:
 
     def __init__(self, repo_path: Path, output_base_dir: Optional[Path] = None):
         self.repo_path = repo_path.resolve()
-        self.output_base_dir = (output_base_dir or (self.repo_path / "exports")).resolve()
+        
+        is_read_only = bool(os.environ.get("VERCEL"))
+        if not is_read_only:
+            try:
+                probe = self.repo_path / ".write_probe"
+                probe.touch()
+                probe.unlink()
+            except (OSError, PermissionError):
+                is_read_only = True
+
+        if output_base_dir:
+            self.output_base_dir = output_base_dir.resolve()
+        elif is_read_only:
+            self.output_base_dir = (Path(tempfile.gettempdir()) / "veriloom_exports").resolve()
+        else:
+            self.output_base_dir = (self.repo_path / "exports").resolve()
+            
         self.task_catalogue: List[TaskSpecification] = []
 
     def run_end_to_end(

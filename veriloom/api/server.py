@@ -113,7 +113,12 @@ def run_pipeline(req: RunPipelineRequest):
 
 @app.get("/api/packages")
 def list_packages(export_dir: str = "exports"):
-    candidate_dirs = [Path(export_dir).resolve(), Path("examples/sample_packages").resolve()]
+    import tempfile
+    candidate_dirs = [
+        Path(export_dir).resolve(),
+        Path("examples/sample_packages").resolve(),
+        (Path(tempfile.gettempdir()) / "veriloom_exports").resolve(),
+    ]
     packages = []
     seen = set()
 

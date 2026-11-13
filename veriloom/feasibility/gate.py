@@ -66,7 +66,8 @@ class FeasibilityGate:
                 content = target_file.read_text(encoding="utf-8", errors="ignore")
                 # Strip class / def / const prefixes for symbol check
                 bare_symbol = ev.symbol.split()[-1].split("(")[0].strip()
-                if bare_symbol not in content:
+                method_name = bare_symbol.split(".")[-1]
+                if bare_symbol not in content and method_name not in content:
                     violations.append(
                         GroundingViolation(
                             category="missing_symbol",

@@ -18,6 +18,10 @@ EXCLUDE_DIRS = {
     ".coverage",
     ".idea",
     ".vscode",
+    "_vendor",
+    "___vc",
+    ".vercel",
+    "site-packages",
 }
 
 
@@ -29,8 +33,8 @@ class ASTAnalyzer:
         files: List[Path] = []
         for path in repo_path.rglob("*"):
             if path.is_file():
-                # Check if any parent part is excluded
-                if any(part in EXCLUDE_DIRS for part in path.parts):
+                # Check if any parent part is excluded or is an egg-info folder
+                if any(part in EXCLUDE_DIRS or part.endswith(".egg-info") for part in path.parts):
                     continue
                 files.append(path)
         return sorted(files)

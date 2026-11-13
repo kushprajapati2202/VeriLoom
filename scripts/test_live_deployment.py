@@ -91,6 +91,14 @@ def main():
         )
         return r.status_code == 404, f"HTTP {r.status_code} (Graceful error handling verified)"
 
+    # 8. Run Factory Pipeline API (POST /api/pipeline/run)
+    def check_pipeline_run():
+        r = client.post("/api/pipeline/run", json={"repo_path": ".", "candidate_index": 0})
+        data = r.json()
+        tid = data.get("task_id", "")
+        verified = data.get("package_verified", False)
+        return r.status_code == 200 and verified, f"HTTP 200, Task: {tid}, Verified: {verified}"
+
     checks = [
         ("Web Engineering Dashboard (GET /)", check_root),
         ("Dashboard Route Alias (GET /dashboard)", check_dashboard),
@@ -99,6 +107,7 @@ def main():
         ("Interactive OpenAPI Docs (GET /docs)", check_docs),
         ("Service Health API (GET /api/status)", check_status),
         ("Repository Intelligence Inspect (POST /api/repository/inspect)", check_inspect),
+        ("Factory Pipeline End-to-End Generation (POST /api/pipeline/run)", check_pipeline_run),
         ("Task Package Catalog API (GET /api/packages)", check_packages),
         ("Defensive Benchmark Error Handling (POST 404 check)", check_benchmark_404),
     ]
