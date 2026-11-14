@@ -68,3 +68,9 @@ temp/
 exports/
 logs/*.log
 *.log
+
+# Demo video and recordings
+demo_video/
+scripts/record_demo_video.py
+*.webm
+*.mp4
