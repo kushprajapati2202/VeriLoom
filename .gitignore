@@ -72,5 +72,6 @@ logs/*.log
 # Demo video and recordings
 demo_video/
 scripts/record_demo_video.py
+scripts/generate_audio_narration.py
 *.webm
 *.mp4
