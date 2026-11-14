@@ -73,5 +73,6 @@ logs/*.log
 demo_video/
 scripts/record_demo_video.py
 scripts/generate_audio_narration.py
+scripts/generate_indian_audio_narration.py
 *.webm
 *.mp4
