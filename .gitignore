@@ -10,8 +10,6 @@ docs/
 *.plan.md
 *.brief.md
 *.spec.md
-DEMO_SCRIPT.md
-SUBMISSION.md
 EVALUATION_REPORT.md
 
 # Python
@@ -78,3 +76,4 @@ scripts/generate_conversational_narration.py
 scripts/*narration*.py
 *.webm
 *.mp4
+demo_out/

@@ -313,6 +313,8 @@ class LLMTaskAuthor:
                 attempt.passed = report.passed
                 for g in report.gates:
                     log.info("[gate] %-12s %s  %s", g.name, "PASS" if g.passed else "FAIL", g.detail[:140])
+                    if not g.passed and g.log_tail:
+                        log.debug("[gate] %s output:\n%s", g.name, g.log_tail)
                 if report.passed:
                     return self._result(spec, target, source, draft, test_name, req_tests, details, report,
                                         attempts, commit)

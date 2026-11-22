@@ -124,6 +124,17 @@ The attempt history and gate results are saved to `validation/authoring-log.json
 
 Without a key the pipeline uses **offline templates**: three fixed feature families appended to the target file. They exist so the pipeline, tests and dashboard work with no credentials; they are not repository-specific and are not the evidence for task quality.
 
+### Record and replay (reproducible without an API key)
+```bash
+# record the model's responses during a real run
+python -m veriloom run-pipeline test_repos/shopcart --candidate-index 1 --record run.jsonl
+# replay them later: no key, no network; every gate still executes live
+python -m veriloom run-pipeline test_repos/shopcart --candidate-index 1 \
+    --replay examples/recordings/shopcart_lifecycle.jsonl
+```
+Only the model's text is cached. Specification checks, the sandbox gates and packaging all run for real, so a
+replayed task is validated exactly as a live one.
+
 ### Reproducing the evidence
 ```bash
 python scripts/setup_demo_repo.py shopcart        # demo target repo with a fixed, reproducible commit SHA

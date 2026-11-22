@@ -29,6 +29,11 @@ class LLMFactory:
         # 1. Explicit provider requested
         name = (provider_name or os.getenv("VERILOOM_LLM_PROVIDER", "")).lower()
 
+        if name == "replay":
+            from pathlib import Path
+            from veriloom.llm.recording import ReplayProvider
+            return ReplayProvider(Path(os.environ["VERILOOM_REPLAY_FILE"]))
+
         if name == "gemini" or (not name and os.getenv("GEMINI_API_KEY")):
             key = api_key or os.getenv("GEMINI_API_KEY")
             if key:

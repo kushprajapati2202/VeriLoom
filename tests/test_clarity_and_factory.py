@@ -51,3 +51,38 @@ def test_mutant_find_tolerates_reindented_snippet():
 def test_mutant_find_rejects_ambiguous_snippet():
     from veriloom.validation.sandbox import apply_mutant
     assert apply_mutant("return 1\nreturn 1\n", "return 1", "return 2") == (None, 2)
+
+
+def test_record_then_replay_roundtrip(tmp_path):
+    from veriloom.llm import RecordingProvider, ReplayProvider
+    from veriloom.llm.provider import LLMProvider
+
+    class Fake(LLMProvider):
+        model = "fake-1"
+        def generate(self, prompt, system_prompt=None):
+            return f"answer to {prompt}"
+
+    rec = RecordingProvider(Fake(), tmp_path / "r.jsonl")
+    assert rec.generate("a") == "answer to a"
+    assert rec.generate("b", "sys") == "answer to b"
+    rp = ReplayProvider(tmp_path / "r.jsonl")
+    assert rp.generate("b", "sys") == "answer to b"      # exact match out of order
+    assert rp.generate("something else") == "answer to a"  # ordered fallback
+    assert rp.last_model_used == "replay of fake-1"
+
+
+def test_repeated_snippet_becomes_one_mutant_per_site():
+    from veriloom.validation.sandbox import mutant_variants
+    assert mutant_variants("a>1\nb\na>1\n", "a>1", "a>=1") == ["a>=1\nb\na>1\n", "a>1\nb\na>=1\n"]
+
+
+def test_spec_conflict_only_when_every_attempt_breaks_regression():
+    from veriloom.authoring.llm_author import Attempt
+    from veriloom.orchestrator.pipeline import VeriLoomPipeline as P
+    reg_fail = {"name": "regression", "passed": False, "detail": "broken: tests/test_x.py",
+                "log_tail": "E   RuntimeError: Cannot take from draft product"}
+    mut_fail = {"name": "mutation", "passed": False, "detail": "2/3", "log_tail": ""}
+    both = [Attempt(number=1, gates=[reg_fail]), Attempt(number=2, gates=[reg_fail])]
+    fb = P._spec_conflict(both)
+    assert fb and "Cannot take from draft product" in fb
+    assert P._spec_conflict([Attempt(number=1, gates=[reg_fail]), Attempt(number=2, gates=[mut_fail])]) is None

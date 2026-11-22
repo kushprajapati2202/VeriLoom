@@ -47,6 +47,7 @@ class TaskSpecGenerator:
         llm_provider: Optional[LLMProvider] = None,
         repo_root: Optional[Path] = None,
         existing_tasks: Optional[List[str]] = None,
+        feedback: Optional[str] = None,
     ) -> TaskSpecification:
         tid = task_id or f"task_{uuid.uuid4().hex[:6]}"
         target_file = opportunity.target_evidence[0].path if opportunity.target_evidence else "src/main.py"
@@ -70,6 +71,8 @@ class TaskSpecGenerator:
                     family_guidance=FAMILY_GUIDANCE.get(opportunity.feature_family, ""),
                     existing_tasks="\n".join(f"  - {t}" for t in (existing_tasks or [])) or "  (none yet)",
                 )
+                if feedback:
+                    prompt += "\n\nFEEDBACK ON YOUR PREVIOUS SPECIFICATION:\n" + feedback
                 data = provider.generate_json(prompt)
 
                 reqs = [

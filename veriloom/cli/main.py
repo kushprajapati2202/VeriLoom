@@ -62,7 +62,11 @@ def opportunities(repo_path):
 @click.option("--candidate-index", default=0, help="Index of opportunity to generate.")
 @click.option("--output-dir", default=None, help="Output directory for task packages.")
 @click.option("--harbor", is_flag=True, default=False, help="Also export the package as a Harbor task.")
-def run_pipeline(repo_path, candidate_index, output_dir, harbor):
+@click.option("--record", "record_path", default=None, type=click.Path(),
+              help="Save every model response to this JSONL file (for offline replay).")
+@click.option("--replay", "replay_path", default=None, type=click.Path(exists=True),
+              help="Use recorded model responses instead of calling an API. Gates still run live.")
+def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, replay_path):
     """Execute complete 11-stage pipeline from repository ingestion to verified package."""
     path = Path(repo_path).resolve()
     out_path = Path(output_dir).resolve() if output_dir else None
@@ -72,7 +76,15 @@ def run_pipeline(repo_path, candidate_index, output_dir, harbor):
     for noisy in ("httpx", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     click.echo(f"[*] Launching VeriLoom AI pipeline against: {path}")
-    pipeline = VeriLoomPipeline(path, out_path)
+    from veriloom.llm import LLMFactory, RecordingProvider, ReplayProvider
+    provider = None
+    if replay_path:
+        provider = ReplayProvider(Path(replay_path))
+        click.echo(f"[*] Replaying recorded model responses from {replay_path} (all gates run live)")
+    elif record_path:
+        provider = RecordingProvider(LLMFactory.get_provider(), Path(record_path))
+        click.echo(f"[*] Recording model responses to {record_path}")
+    pipeline = VeriLoomPipeline(path, out_path, llm_provider=provider)
 
     try:
         result = pipeline.run_end_to_end(candidate_index=candidate_index, export_harbor=harbor)

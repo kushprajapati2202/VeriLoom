@@ -79,6 +79,28 @@ def apply_mutant(content: str, find: str, replace: str):
     return "\n".join(lines[:i] + new_block + lines[i + len(want):]), 1
 
 
+MAX_MUTANT_SITES = 4
+
+
+def mutant_variants(content: str, find: str, replace: str) -> List[str]:
+    """All single-site mutations: one variant per exact occurrence (up to MAX_MUTANT_SITES),
+    or the whitespace-tolerant unique match when there is no exact occurrence."""
+    if not find:
+        return []
+    count = content.count(find)
+    if count == 0:
+        mutated, n = apply_mutant(content, find, replace)
+        return [mutated] if mutated is not None else []
+    if count > MAX_MUTANT_SITES:
+        return []
+    out, start = [], 0
+    for _ in range(count):
+        i = content.index(find, start)
+        out.append(content[:i] + replace + content[i + len(find):])
+        start = i + len(find)
+    return out
+
+
 def discover_test_targets(repo_dir: Path) -> List[str]:
     """Existing test files in the repository (relative paths)."""
     if (repo_dir / "tests").is_dir():
@@ -326,24 +348,31 @@ class SandboxValidator:
             outcomes: List[MutantOutcome] = []
             if g2_ok:
                 for m in mutants:
-                    mutated, count = apply_mutant(new_content, m.find, m.replace)
-                    if mutated is None:
+                    variants = mutant_variants(new_content, m.find, m.replace)
+                    if not variants:
+                        count = new_content.count(m.find) if m.find else 0
                         outcomes.append(MutantOutcome(
                             id=m.id, description=m.description, fault_type=m.fault_type, status="INVALID",
-                            detail=f"`find` snippet occurs {count} times in the reference (must be exactly 1)",
+                            detail=f"`find` snippet occurs {count} times in the reference"
+                            + (" (too many sites; extend it with neighbouring lines)" if count > 1
+                               else " - copy it verbatim from NEW_FILE"),
                         ))
                         continue
-                    if mutated == new_content:
-                        outcomes.append(MutantOutcome(id=m.id, description=m.description,
-                                                      fault_type=m.fault_type, status="INVALID",
-                                                      detail="replacement equals original"))
-                        continue
-                    sandbox.write(target_file, mutated)
-                    res = sandbox.pytest([hidden_test], junit=False)
-                    outcomes.append(MutantOutcome(
-                        id=m.id, description=m.description, fault_type=m.fault_type,
-                        status="KILLED" if res.exit_code != 0 else "SURVIVED",
-                    ))
+                    # A snippet found at several sites yields one mutant per site (standard
+                    # per-site mutation): the tests must catch the fault wherever it occurs.
+                    for site, mutated in enumerate(variants, 1):
+                        mid = m.id if len(variants) == 1 else f"{m.id}@{site}"
+                        if mutated == new_content:
+                            outcomes.append(MutantOutcome(id=mid, description=m.description,
+                                                          fault_type=m.fault_type, status="INVALID",
+                                                          detail="replacement equals original"))
+                            continue
+                        sandbox.write(target_file, mutated)
+                        res = sandbox.pytest([hidden_test], junit=False)
+                        outcomes.append(MutantOutcome(
+                            id=mid, description=m.description, fault_type=m.fault_type,
+                            status="KILLED" if res.exit_code != 0 else "SURVIVED",
+                        ))
                 sandbox.write(target_file, new_content)
                 valid = [o for o in outcomes if o.status != "INVALID"]
                 killed = [o for o in valid if o.status == "KILLED"]
@@ -352,10 +381,11 @@ class SandboxValidator:
                 survivors = [f"{o.id} ({o.description})" for o in valid if o.status == "SURVIVED"]
                 by_id = {m.id: m for m in mutants}
                 survivor_diffs = "\n\n".join(
-                    f"{o.id}: your tests still PASS when\n--- find\n{by_id[o.id].find}\n+++ replace\n"
-                    f"{by_id[o.id].replace}\nAdd a test whose expected result differs between these two versions "
+                    f"{o.id}: your tests still PASS when\n--- find\n{src.find}\n+++ replace\n"
+                    f"{src.replace}\nAdd a test whose expected result differs between these two versions "
                     "(e.g. an input exactly at the boundary or the case the faulty line mishandles)."
-                    for o in valid if o.status == "SURVIVED" and o.id in by_id
+                    for o in valid if o.status == "SURVIVED"
+                    for src in [by_id.get(o.id.split("@", 1)[0])] if src is not None
                 )
                 invalid = [f"{o.id}: {o.detail}" for o in outcomes if o.status == "INVALID"]
                 gates.append(GateResult(

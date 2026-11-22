@@ -32,6 +32,10 @@ DESIGN RULES FOR A STRONG BENCHMARK TASK:
 - State every rule precisely (exact names, defaults, thresholds, rounding, error types) with at least one
   worked example containing concrete input and output values, so a solver can implement it without guessing.
 - It must be implementable with the standard library only, inside the target file.
+- BACKWARD COMPATIBILITY IS MANDATORY: the repository's existing tests must keep passing unchanged. New
+  behaviour must be opt-in, and every new default must reproduce today's behaviour. Example: if you add a
+  product status, the default status must be one in which all current operations still work; do not make
+  existing objects start in a restricted state, and do not change existing signatures or return values.
 - Make it clearly DIFFERENT in behaviour from these tasks already generated for this repository:
 {existing_tasks}
 
