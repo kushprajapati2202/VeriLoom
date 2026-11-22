@@ -5,7 +5,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from veriloom.contracts.task_spec import TaskSpecification
 from veriloom.contracts.repository import RepositoryRecord
@@ -32,6 +32,14 @@ class PackageBuilder:
                 h.update(chunk)
         return "sha256:" + h.hexdigest()
 
+    @staticmethod
+    def _mutation_score(val_report: ValidationReport) -> float:
+        checks = val_report.mutation_checks
+        if not checks:
+            return 0.0
+        killed = sum(1 for m in checks if m.status.value == "KILLED")
+        return round(100.0 * killed / len(checks), 1)
+
     @classmethod
     def build_package(
         cls,
@@ -42,6 +50,7 @@ class PackageBuilder:
         val_report: ValidationReport,
         var_report: VariationReport,
         output_base_dir: Path,
+        authoring_log: Optional[dict] = None,
     ) -> Path:
         output_base_dir = output_base_dir.resolve()
         pkg_dir = output_base_dir / f"pkg_{spec.task_id}"
@@ -100,6 +109,11 @@ class PackageBuilder:
             var_report.model_dump_json(indent=2), encoding="utf-8"
         )
 
+        if authoring_log is not None:
+            (pkg_dir / "validation" / "authoring-log.json").write_text(
+                json.dumps(authoring_log, indent=2, default=str), encoding="utf-8"
+            )
+
         # 6. Compute Checksums
         checksums: Dict[str, str] = {}
         for root, _, files in os.walk(pkg_dir):
@@ -137,7 +151,7 @@ class PackageBuilder:
                 status="VALIDATED" if val_report.status == "passed" else "FAILED",
                 reference_solution_passes=val_report.status == "passed",
                 regression_free=val_report.regression_summary.newly_introduced_failures == 0,
-                mutation_score_pct=100.0,
+                mutation_score_pct=cls._mutation_score(val_report),
                 meaningful_variation_confirmed=var_report.novelty_assessment.is_meaningfully_novel,
             ),
         )

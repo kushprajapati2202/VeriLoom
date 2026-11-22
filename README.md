@@ -103,6 +103,31 @@ python -m veriloom serve --port 8000
 ```
 Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) in your browser for the real-time pipeline visualizer and task catalog. OpenAPI specifications are available at `http://127.0.0.1:8000/docs`.
 
+### 7. LLM-Authored Tasks with Sandbox Validation
+With an LLM key configured (see `.env.example`), `run-pipeline` has the model write the reference implementation, the hidden feature tests, the exact behaviour rules and faulty variants (mutants) for the **real target file**. Each attempt runs in a throwaway copy of the repo at the pinned commit and must pass five gates, or the failures go back to the model for repair (up to 3 attempts):
+
+| Gate | Checks |
+|---|---|
+| `fail_before` | every requirement has a test that fails on the original code |
+| `pass_after` | all feature tests pass with the reference implementation |
+| `regression` | existing tests that passed at baseline still pass |
+| `mutation` | ≥3 valid mutants and ≥80% of them killed by the tests |
+| `clarity` | every value a test asserts is stated in the task |
+
+The attempt history and gate results are saved to `validation/authoring-log.json` in the package. Without a key, the pipeline falls back to the offline templates.
+
+### 8. Export to the Harbor Task Format
+Convert a validated package into a [Harbor](https://www.harborframework.com/) task:
+```bash
+python -m veriloom export-harbor ./examples/sample_packages/pkg_task_48e3bf --repo .
+# or generate + export in one go:
+python -m veriloom run-pipeline <repo> --harbor
+```
+Produces `instruction.md`, `task.toml`, `environment/` (Dockerfile + repo snapshot at the pinned commit), `solution/solve.sh` (applies the reference patch) and `tests/test.sh` (hidden feature tests + tamper-proof regression suite, writing `/logs/verifier/reward.txt`). By default it replays the task locally without Docker and requires **oracle reward = 1** and **no-op reward = 0**. It also warns when hidden tests assert values that the instruction never states. With Docker installed, run the real thing:
+```bash
+harbor run -p <harbor_tasks/task_id> -a oracle
+```
+
 ---
 
 ## Cloud Deployment

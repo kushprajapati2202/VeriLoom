@@ -63,4 +63,8 @@ class TaskSpecification(BaseModel):
     )
     test_plan: List[TestPlanItem] = Field(default_factory=list, description="Planned test scenarios")
     known_limitations: List[str] = Field(default_factory=list, description="Acknowledged scope limitations")
+    behaviour_details: List[str] = Field(
+        default_factory=list,
+        description="Exact rules the hidden tests rely on (names, defaults, constants) so the task is solvable",
+    )
 

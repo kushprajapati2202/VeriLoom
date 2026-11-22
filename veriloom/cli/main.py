@@ -61,7 +61,8 @@ def opportunities(repo_path):
 @click.argument("repo_path", type=click.Path(exists=True), default=".")
 @click.option("--candidate-index", default=0, help="Index of opportunity to generate.")
 @click.option("--output-dir", default=None, help="Output directory for task packages.")
-def run_pipeline(repo_path, candidate_index, output_dir):
+@click.option("--harbor", is_flag=True, default=False, help="Also export the package as a Harbor task.")
+def run_pipeline(repo_path, candidate_index, output_dir, harbor):
     """Execute complete 11-stage pipeline from repository ingestion to verified package."""
     path = Path(repo_path).resolve()
     out_path = Path(output_dir).resolve() if output_dir else None
@@ -70,7 +71,7 @@ def run_pipeline(repo_path, candidate_index, output_dir):
     pipeline = VeriLoomPipeline(path, out_path)
 
     try:
-        result = pipeline.run_end_to_end(candidate_index=candidate_index)
+        result = pipeline.run_end_to_end(candidate_index=candidate_index, export_harbor=harbor)
         click.echo(f"\n[SUCCESS] Pipeline completed successfully!")
         click.echo(f"  - Task ID:           {result.task_id}")
         click.echo(f"  - Title:             {result.specification.title}")
@@ -81,6 +82,11 @@ def run_pipeline(repo_path, candidate_index, output_dir):
         click.echo(f"  - Novelty Score:     {result.variation_report.novelty_assessment.overall_novelty_score}")
         click.echo(f"  - Package Directory: {result.package_dir}")
         click.echo(f"  - Replay Verified:   {result.package_verified}")
+        click.echo(f"  - Authoring Mode:    {result.authoring_mode}"
+                   + (f" ({result.authoring_attempts} attempt(s))" if result.authoring_mode == "llm" else
+                      "  [offline templates: set an LLM API key for repo-specific tasks]"))
+        if result.harbor_task_dir:
+            click.echo(f"  - Harbor Task:       {result.harbor_task_dir}")
     except Exception as e:
         click.echo(f"[ERROR] Pipeline execution failed: {e}", err=True)
         raise click.Abort()
@@ -135,6 +141,41 @@ def benchmark(package, solution, model, repo_path):
     click.echo(f"  - Regression Suite: {'CLEAN' if result.regression_clean else 'BROKEN'}")
     click.echo(f"  - Failure Category: {result.failure_category.value}")
     click.echo(f"  - Latency:          {result.execution_time_ms} ms")
+
+
+@cli.command(name="export-harbor")
+@click.argument("package_path", type=click.Path(exists=True))
+@click.option("--repo", "repo_path", default=".", type=click.Path(exists=True), help="Repository the package was generated from.")
+@click.option("--output-dir", default=None, type=click.Path(), help="Where to write the Harbor task (default: <package parent>/harbor_tasks).")
+@click.option("--check/--no-check", default=True, help="Replay oracle (expect reward 1) and no-op (expect reward 0) trials locally.")
+def export_harbor(package_path, repo_path, output_dir, check):
+    """Export a VeriLoom package as a Harbor task (instruction.md, task.toml, environment/, solution/, tests/)."""
+    from veriloom.packaging import HarborExporter, HarborLocalRunner
+
+    result = HarborExporter.export(
+        Path(package_path), Path(repo_path), Path(output_dir) if output_dir else None
+    )
+    click.echo(f"[+] Harbor task written: {result.task_dir}")
+    click.echo(f"  - Starting commit:    {result.starting_commit}")
+    click.echo(f"  - Regression targets: {', '.join(result.regression_targets) or 'none'}")
+    click.echo(f"  - Reference patch:    {'applies cleanly' if result.patch_applies else 'DOES NOT APPLY'}")
+    for w in result.warnings:
+        click.echo(f"  [WARN] {w}")
+
+    if check:
+        click.echo("[*] Replaying Harbor trials locally (oracle + no-op)...")
+        report = HarborLocalRunner.check(Path(result.task_dir))
+        report_path = Path(result.task_dir).parent / f"{result.task_id}.local-check.json"
+        report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+        click.echo(f"  - Oracle reward: {report.oracle.reward}  (expected 1)")
+        click.echo(f"  - No-op reward:  {report.nop.reward}  (expected 0)")
+        click.echo(f"  - Report:        {report_path}")
+        if not report.passed:
+            for n in report.notes:
+                click.echo(f"  [FAIL] {n}", err=True)
+            raise click.Abort()
+        click.echo("[PASS] Task is solvable and its tests detect the missing feature.")
+    click.echo(f"\nRun under Harbor (requires Docker):\n  harbor run -p {result.task_dir} -a oracle")
 
 
 @cli.command()

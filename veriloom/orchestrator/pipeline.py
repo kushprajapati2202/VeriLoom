@@ -24,7 +24,9 @@ from veriloom.reference_solution import (
 from veriloom.test_generation import FeatureTestGenerator, GeneratedTestSuite
 from veriloom.validation import ValidationRunner
 from veriloom.variation import VariationEngine
-from veriloom.packaging import PackageBuilder, PackageVerifier
+from veriloom.packaging import HarborExporter, PackageBuilder, PackageVerifier
+from veriloom.llm import LLMFactory, LLMProvider, OfflineFallbackProvider
+from veriloom.authoring import LLMTaskAuthor
 
 
 class PipelineRunResult(BaseModel):
@@ -38,12 +40,21 @@ class PipelineRunResult(BaseModel):
     variation_report: VariationReport
     package_dir: str
     package_verified: bool
+    harbor_task_dir: Optional[str] = None
+    authoring_mode: str = "template"  # "llm" when authored + sandbox-validated by a model
+    authoring_attempts: int = 0
 
 
 class VeriLoomPipeline:
     """Orchestrates the complete 11-stage generation, validation, and packaging pipeline."""
 
-    def __init__(self, repo_path: Path, output_base_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        repo_path: Path,
+        output_base_dir: Optional[Path] = None,
+        llm_provider: Optional[LLMProvider] = None,
+    ):
+        self.llm_provider = llm_provider
         self.repo_path = repo_path.resolve()
         
         is_read_only = bool(os.environ.get("VERCEL"))
@@ -65,7 +76,10 @@ class VeriLoomPipeline:
         self.task_catalogue: List[TaskSpecification] = []
 
     def run_end_to_end(
-        self, candidate_index: int = 0, custom_task_id: Optional[str] = None
+        self,
+        candidate_index: int = 0,
+        custom_task_id: Optional[str] = None,
+        export_harbor: bool = False,
     ) -> PipelineRunResult:
         # Stage 1: Ingestion and Capability Mapping
         repo_rec = RepositoryIntelligenceEngine.ingest(self.repo_path)
@@ -81,8 +95,15 @@ class VeriLoomPipeline:
         selected_opp = opportunities[min(candidate_index, len(opportunities) - 1)]
 
         # Stage 3: Task Specification Generation
+        provider = self.llm_provider or LLMFactory.get_provider()
+        use_llm = not isinstance(provider, OfflineFallbackProvider)
         spec = TaskSpecGenerator.generate_from_opportunity(
-            selected_opp, repo_rec.repository_id, repo_rec.starting_commit, task_id=custom_task_id
+            selected_opp,
+            repo_rec.repository_id,
+            repo_rec.starting_commit,
+            task_id=custom_task_id,
+            llm_provider=provider,
+            repo_root=self.repo_path,
         )
 
         # Stage 4: Feasibility and Grounding Gate
@@ -92,16 +113,34 @@ class VeriLoomPipeline:
                 f"Task failed feasibility gate: {feas_report.actionable_feedback}"
             )
 
-        # Stage 5: Reference Implementation
-        ref_solution = ReferenceSolutionAgent.create_reference_solution(spec, self.repo_path)
-
-        # Stage 6: Feature Test Generation
-        test_suite = FeatureTestGenerator.generate_tests(spec)
-
-        # Stages 7 & 8: Baseline, Feature, Regression, and Fault Injection Validation
-        val_report = ValidationRunner.run_validation(
-            spec, repo_rec, ref_solution, test_suite, self.repo_path
-        )
+        authoring_log = None
+        if use_llm:
+            # Stages 5-8 (LLM mode): model authors implementation, tests and mutants;
+            # every attempt is validated in an isolated sandbox and repaired on failure.
+            authored = LLMTaskAuthor(provider).author(
+                spec,
+                self.repo_path,
+                repo_rec.starting_commit,
+                language=repo_rec.language,
+                framework=repo_rec.framework,
+            )
+            spec = authored.spec
+            ref_solution = authored.reference_solution
+            test_suite = authored.test_suite
+            val_report = authored.validation_report
+            authoring_log = {
+                "mode": "llm",
+                "provider": type(provider).__name__,
+                "attempts": [a.model_dump() for a in authored.attempts],
+                "final_gates": authored.gate_report.model_dump(),
+            }
+        else:
+            # Stages 5-8 (offline template mode)
+            ref_solution = ReferenceSolutionAgent.create_reference_solution(spec, self.repo_path)
+            test_suite = FeatureTestGenerator.generate_tests(spec)
+            val_report = ValidationRunner.run_validation(
+                spec, repo_rec, ref_solution, test_suite, self.repo_path
+            )
 
         # Stage 9: Meaningful Variation Analysis
         var_report = VariationEngine.evaluate_variation(spec, self.task_catalogue)
@@ -116,10 +155,16 @@ class VeriLoomPipeline:
             val_report,
             var_report,
             self.output_base_dir,
+            authoring_log=authoring_log,
         )
 
         # Stage 11: Verification Replay Check
         is_valid, _ = PackageVerifier.verify_checksums(pkg_dir)
+
+        # Stage 12 (optional): Harbor task export
+        harbor_task_dir = None
+        if export_harbor:
+            harbor_task_dir = HarborExporter.export(pkg_dir, self.repo_path).task_dir
 
         return PipelineRunResult(
             task_id=spec.task_id,
@@ -132,5 +177,8 @@ class VeriLoomPipeline:
             variation_report=var_report,
             package_dir=str(pkg_dir),
             package_verified=is_valid,
+            harbor_task_dir=harbor_task_dir,
+            authoring_mode="llm" if use_llm else "template",
+            authoring_attempts=len(authoring_log["attempts"]) if authoring_log else 0,
         )
 

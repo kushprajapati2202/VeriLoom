@@ -94,7 +94,7 @@ class GeminiProvider(LLMProvider):
             contents.append({"role": "model", "parts": [{"text": "Understood. I will strictly follow all instructions."}]})
         contents.append({"role": "user", "parts": [{"text": prompt}]})
 
-        with httpx.Client(timeout=45.0) as client:
+        with httpx.Client(timeout=300.0) as client:
             resp = client.post(
                 self.endpoint,
                 headers={"Content-Type": "application/json"},
@@ -128,7 +128,7 @@ class ClaudeProvider(LLMProvider):
         if system_prompt:
             body["system"] = system_prompt
 
-        with httpx.Client(timeout=45.0) as client:
+        with httpx.Client(timeout=300.0) as client:
             resp = client.post(self.endpoint, headers=headers, json=body)
             resp.raise_for_status()
             data = resp.json()
@@ -158,7 +158,7 @@ class OpenAIProvider(LLMProvider):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        with httpx.Client(timeout=45.0) as client:
+        with httpx.Client(timeout=300.0) as client:
             resp = client.post(
                 self.endpoint,
                 headers=headers,
@@ -186,7 +186,7 @@ class OllamaProvider(LLMProvider):
         if system_prompt:
             body["system"] = system_prompt
 
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=600.0) as client:
             resp = client.post(self.endpoint, json=body)
             resp.raise_for_status()
             data = resp.json()
