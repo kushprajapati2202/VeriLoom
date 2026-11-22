@@ -1,0 +1,24 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "criteria_total": 3,
+    "criteria_covered": 3,
+    "test_names": [
+      "test_apply_discount_calculation",
+      "test_discount_affects_summary",
+      "test_discount_persistence_on_add",
+      "test_zero_and_full_discount"
+    ],
+    "status": "fully_covered"
+  },
+  {
+    "requirement_id": "REQ-002",
+    "criteria_total": 2,
+    "criteria_covered": 2,
+    "test_names": [
+      "test_clear_resets_discount",
+      "test_overwrite_discount"
+    ],
+    "status": "fully_covered"
+  }
+]

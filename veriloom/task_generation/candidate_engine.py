@@ -22,7 +22,11 @@ class CandidateOpportunityEngine:
     """Discovers realistic feature extension opportunities grounded in the repository capability map."""
 
     @classmethod
-    def discover_opportunities(cls, capability_map: CapabilityMap) -> List[CandidateOpportunity]:
+    def discover_opportunities(
+        cls, capability_map: CapabilityMap, extended_families: bool = False
+    ) -> List[CandidateOpportunity]:
+        if extended_families:
+            return cls._discover_extended(capability_map)
         opportunities: List[CandidateOpportunity] = []
         extension_points = capability_map.candidate_extension_points
 
@@ -91,3 +95,45 @@ class CandidateOpportunityEngine:
         opportunities.sort(key=lambda o: o.score, reverse=True)
         return opportunities
 
+
+    # Families used when an LLM authors the task: the model designs a feature for the
+    # file's real domain, so every family is meaningful (templates only support three).
+    EXTENDED = [
+        (FeatureFamily.BUSINESS_RULES, TaskDifficulty.INTERMEDIATE, "domain policy rules"),
+        (FeatureFamily.STATE_TRANSITIONS, TaskDifficulty.ADVANCED, "a stateful lifecycle"),
+        (FeatureFamily.DATA_VALIDATION, TaskDifficulty.INTERMEDIATE, "input validation with error reporting"),
+        (FeatureFamily.ERROR_HANDLING, TaskDifficulty.ADVANCED, "failure recovery behaviour"),
+        (FeatureFamily.DATA_LIFECYCLE, TaskDifficulty.ADVANCED, "versioned/expiring data"),
+        (FeatureFamily.API_BEHAVIOUR, TaskDifficulty.INTERMEDIATE, "an extended public API contract"),
+        (FeatureFamily.PERMISSIONS_AUTH, TaskDifficulty.ADVANCED, "access-control rules"),
+    ]
+
+    @classmethod
+    def _discover_extended(cls, capability_map: CapabilityMap) -> List[CandidateOpportunity]:
+        by_file = {}
+        for ep in capability_map.candidate_extension_points:
+            if ep.path.endswith(".py"):
+                by_file.setdefault(ep.path, []).append(ep)
+        # Files with more public symbols offer more to extend; rotate families across them
+        # so consecutive candidates differ in both behaviour and target.
+        files = sorted(by_file, key=lambda f: (-len(by_file[f]), f))
+        opps: List[CandidateOpportunity] = []
+        for i, (family, difficulty, phrase) in enumerate(cls.EXTENDED * max(1, min(3, len(files)))):
+            if not files:
+                break
+            path = files[i % len(files)]
+            points = by_file[path]
+            symbols = [p.symbol for p in points if p.symbol]
+            opps.append(CandidateOpportunity(
+                candidate_id=f"cand_{i + 1:03d}",
+                title=f"Add {phrase} to {path.split('/')[-1][:-3]}",
+                feature_family=family,
+                difficulty=difficulty,
+                summary=f"Design a {family.value.replace('_', ' ')} feature around {', '.join(symbols[:3]) or path}.",
+                target_evidence=points[:3],
+                score=round(1.0 - i * 0.01, 2),
+                feasibility_notes="Feature designed by the LLM for this file; feasibility proven by sandbox gates.",
+            ))
+            if len(opps) >= 21:
+                break
+        return opps

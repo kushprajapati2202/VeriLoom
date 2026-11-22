@@ -1,0 +1,22 @@
+[
+  {
+    "id": "REQ-001",
+    "statement": "Introduce a status field to the Product class and a state transition mechanism in the Catalog.",
+    "acceptance_criteria": [
+      "Product objects must now support a 'status' attribute defaulting to 'active'.",
+      "Catalog must provide a 'set_status(sku: str, status: str)' method to update product status.",
+      "Calling 'set_status' on a non-existent SKU must raise UnknownProductError."
+    ],
+    "priority": "must"
+  },
+  {
+    "id": "REQ-002",
+    "statement": "Enforce state-dependent constraints on stock operations.",
+    "acceptance_criteria": [
+      "If a product status is 'discontinued', 'take' operations must raise a ValueError.",
+      "If a product status is 'discontinued', 'restock' operations must raise a ValueError.",
+      "If a product status is 'backordered', 'take' operations must raise OutOfStockError regardless of current stock levels."
+    ],
+    "priority": "must"
+  }
+]

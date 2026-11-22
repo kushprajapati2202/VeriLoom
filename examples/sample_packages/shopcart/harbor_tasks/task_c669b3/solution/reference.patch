@@ -1,0 +1,28 @@
+--- a/shopcart/money.py
++++ b/shopcart/money.py
+@@ -2,12 +2,22 @@
+ 
+ from decimal import Decimal, ROUND_HALF_UP
+ 
++SUPPORTED_CURRENCIES = {'USD', 'EUR', 'INR'}
++
++class UnsupportedCurrencyError(Exception):
++    """Raised when the provided currency code is not supported."""
++    pass
+ 
+ def round_money(amount: float) -> float:
+     return float(Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+ 
+-
+-def format_money(amount: float, currency: str = "USD") -> str:
+-    symbol = {"USD": "$", "EUR": "€", "INR": "₹"}.get(currency, currency + " ")
++def format_money(amount: float, currency: str = "USD", fallback_currency: str = None) -> str:
++    if currency not in SUPPORTED_CURRENCIES:
++        if fallback_currency and fallback_currency in SUPPORTED_CURRENCIES:
++            currency = fallback_currency
++        else:
++            raise UnsupportedCurrencyError(f"Unsupported currency: {currency}")
++            
++    symbol = {"USD": "$", "EUR": "€", "INR": "₹"}[currency]
+     sign = "-" if amount < 0 else ""
+     return f"{sign}{symbol}{abs(round_money(amount)):,.2f}"

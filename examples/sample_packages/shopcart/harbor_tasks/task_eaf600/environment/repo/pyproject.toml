@@ -1,0 +1,8 @@
+[project]
+name = "shopcart"
+version = "0.1.0"
+description = "Small e-commerce core: catalogue, cart pricing, order lifecycle"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

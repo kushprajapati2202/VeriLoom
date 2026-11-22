@@ -1,0 +1,46 @@
+[
+  {
+    "mutant_id": "MUT-001",
+    "description": "Allow restock on discontinued items",
+    "fault_type": "condition_omission",
+    "target_file": "shopcart/catalog.py",
+    "line_modified": null,
+    "expected_killing_test": null,
+    "actual_killing_test": null,
+    "status": "KILLED",
+    "explanation": null
+  },
+  {
+    "mutant_id": "MUT-002",
+    "description": "Allow take on backordered items",
+    "fault_type": "condition_omission",
+    "target_file": "shopcart/catalog.py",
+    "line_modified": null,
+    "expected_killing_test": null,
+    "actual_killing_test": null,
+    "status": "KILLED",
+    "explanation": null
+  },
+  {
+    "mutant_id": "MUT-003",
+    "description": "Default status to something other than active",
+    "fault_type": "value_corruption",
+    "target_file": "shopcart/catalog.py",
+    "line_modified": null,
+    "expected_killing_test": null,
+    "actual_killing_test": null,
+    "status": "KILLED",
+    "explanation": null
+  },
+  {
+    "mutant_id": "MUT-004",
+    "description": "Accept any status string",
+    "fault_type": "missing_check",
+    "target_file": "shopcart/catalog.py",
+    "line_modified": null,
+    "expected_killing_test": null,
+    "actual_killing_test": null,
+    "status": "KILLED",
+    "explanation": null
+  }
+]

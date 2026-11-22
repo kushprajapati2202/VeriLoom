@@ -1,0 +1,42 @@
+{
+  "task_id": "task_c669b3",
+  "feature_family": "error_handling",
+  "difficulty": "advanced",
+  "behavioural_tags": [
+    "error_handling",
+    "structured_error_codes"
+  ],
+  "comparison_catalogue": [
+    {
+      "compared_task_id": "task_c398ca",
+      "feature_family": "business_rules",
+      "text_cosine_similarity": 0.164,
+      "ast_token_overlap_jaccard": 0.0,
+      "shared_behaviour_tags": [],
+      "unique_behaviour_tags": [
+        "error_handling",
+        "structured_error_codes"
+      ],
+      "behavioural_distance_score": 0.951,
+      "is_superficial_variant": false
+    },
+    {
+      "compared_task_id": "task_eaf600",
+      "feature_family": "state_transitions",
+      "text_cosine_similarity": 0.06,
+      "ast_token_overlap_jaccard": 0.0,
+      "shared_behaviour_tags": [],
+      "unique_behaviour_tags": [
+        "error_handling",
+        "structured_error_codes"
+      ],
+      "behavioural_distance_score": 0.982,
+      "is_superficial_variant": false
+    }
+  ],
+  "novelty_assessment": {
+    "overall_novelty_score": 0.951,
+    "is_meaningfully_novel": true,
+    "justification": "Task exhibits meaningful behavioural distance (0.951) from existing catalogue entries."
+  }
+}

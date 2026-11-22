@@ -124,8 +124,12 @@ def list_packages(export_dir: str = "exports"):
 
     for p in candidate_dirs:
         if p.exists() and p.is_dir():
-            for d in p.iterdir():
-                if d.is_dir() and (d / "manifest.json").exists() and d.name not in seen:
+            # Packages may be grouped by target repo (e.g. sample_packages/shopcart/pkg_*).
+            for manifest in sorted(p.glob("**/manifest.json")):
+                d = manifest.parent
+                if "harbor_tasks" in d.parts:
+                    continue
+                if d.name not in seen:
                     is_valid, _ = PackageVerifier.verify_checksums(d)
                     packages.append({"package_id": d.name, "path": str(d), "is_valid": is_valid})
                     seen.add(d.name)

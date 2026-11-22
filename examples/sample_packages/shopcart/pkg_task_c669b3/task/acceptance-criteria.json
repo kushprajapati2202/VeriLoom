@@ -1,0 +1,20 @@
+[
+  {
+    "id": "REQ-001",
+    "statement": "Implement a custom exception class 'UnsupportedCurrencyError' and update 'format_money' to validate the currency code.",
+    "acceptance_criteria": [
+      "Raising 'UnsupportedCurrencyError' when the provided currency code is not in the supported set {'USD', 'EUR', 'INR'}.",
+      "The exception message must include the invalid currency code provided."
+    ],
+    "priority": "must"
+  },
+  {
+    "id": "REQ-002",
+    "statement": "Introduce a 'fallback_currency' parameter to 'format_money' to allow graceful degradation.",
+    "acceptance_criteria": [
+      "If 'fallback_currency' is provided and the primary currency is unsupported, the function must attempt to format using the fallback currency.",
+      "If the fallback currency is also unsupported, the function must raise 'UnsupportedCurrencyError'."
+    ],
+    "priority": "must"
+  }
+]

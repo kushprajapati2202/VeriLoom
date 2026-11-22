@@ -9,6 +9,7 @@ from veriloom.llm.provider import (
     OfflineFallbackProvider,
 )
 from veriloom.llm.factory import LLMFactory
+from veriloom.llm.recording import RecordingProvider, ReplayProvider
 from veriloom.llm.prompts import (
     TASK_SPECIFICATION_PROMPT,
     REFERENCE_SOLUTION_PROMPT,
@@ -23,6 +24,8 @@ __all__ = [
     "OllamaProvider",
     "OfflineFallbackProvider",
     "LLMFactory",
+    "RecordingProvider",
+    "ReplayProvider",
     "TASK_SPECIFICATION_PROMPT",
     "REFERENCE_SOLUTION_PROMPT",
     "FEATURE_TEST_PROMPT",

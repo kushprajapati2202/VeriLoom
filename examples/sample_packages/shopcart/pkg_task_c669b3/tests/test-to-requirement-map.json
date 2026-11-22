@@ -1,0 +1,23 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "criteria_total": 2,
+    "criteria_covered": 2,
+    "test_names": [
+      "test_unsupported_currency_raises_error",
+      "test_none_currency_raises_error"
+    ],
+    "status": "fully_covered"
+  },
+  {
+    "requirement_id": "REQ-002",
+    "criteria_total": 2,
+    "criteria_covered": 2,
+    "test_names": [
+      "test_fallback_currency_success",
+      "test_fallback_currency_invalid_raises_error",
+      "test_inr_support"
+    ],
+    "status": "fully_covered"
+  }
+]

@@ -1,0 +1,121 @@
+{
+  "task_id": "task_eaf600",
+  "repository_commit": "b6ba8b071313f40b015394c6806c907579462eb0",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "feature_tests_fail_on_original",
+      "status": "passed",
+      "command": "pytest test_lifecycle.py -q  # on original code",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "log_path": "logs/feature_tests_fail_on_original.log"
+    },
+    {
+      "name": "feature_tests",
+      "status": "passed",
+      "command": "pytest test_lifecycle.py -q  # with reference",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "log_path": "logs/feature_tests.log"
+    },
+    {
+      "name": "regression_tests",
+      "status": "passed",
+      "command": "pytest tests/test_cart.py tests/test_catalog.py tests/test_orders.py -q",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "log_path": "logs/regression_tests.log"
+    },
+    {
+      "name": "spec_clarity",
+      "status": "passed",
+      "command": "assert every tested literal is stated in the task",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "log_path": "logs/spec_clarity.log"
+    }
+  ],
+  "acceptance_coverage": [
+    {
+      "requirement_id": "REQ-001",
+      "criteria_total": 3,
+      "criteria_covered": 3,
+      "test_names": [
+        "test_set_status_updates_state",
+        "test_set_status_unknown_sku",
+        "test_set_status_invalid_value"
+      ],
+      "status": "fully_covered"
+    },
+    {
+      "requirement_id": "REQ-002",
+      "criteria_total": 3,
+      "criteria_covered": 3,
+      "test_names": [
+        "test_discontinued_blocks_take",
+        "test_discontinued_blocks_restock",
+        "test_backordered_blocks_take"
+      ],
+      "status": "fully_covered"
+    }
+  ],
+  "mutation_checks": [
+    {
+      "mutant_id": "MUT-001",
+      "description": "Allow restock on discontinued items",
+      "fault_type": "condition_omission",
+      "target_file": "shopcart/catalog.py",
+      "line_modified": null,
+      "expected_killing_test": null,
+      "actual_killing_test": null,
+      "status": "KILLED",
+      "explanation": null
+    },
+    {
+      "mutant_id": "MUT-002",
+      "description": "Allow take on backordered items",
+      "fault_type": "condition_omission",
+      "target_file": "shopcart/catalog.py",
+      "line_modified": null,
+      "expected_killing_test": null,
+      "actual_killing_test": null,
+      "status": "KILLED",
+      "explanation": null
+    },
+    {
+      "mutant_id": "MUT-003",
+      "description": "Default status to something other than active",
+      "fault_type": "value_corruption",
+      "target_file": "shopcart/catalog.py",
+      "line_modified": null,
+      "expected_killing_test": null,
+      "actual_killing_test": null,
+      "status": "KILLED",
+      "explanation": null
+    },
+    {
+      "mutant_id": "MUT-004",
+      "description": "Accept any status string",
+      "fault_type": "missing_check",
+      "target_file": "shopcart/catalog.py",
+      "line_modified": null,
+      "expected_killing_test": null,
+      "actual_killing_test": null,
+      "status": "KILLED",
+      "explanation": null
+    }
+  ],
+  "regression_summary": {
+    "baseline_tests_count": 3,
+    "post_patch_tests_count": 3,
+    "passed_count": 3,
+    "pre_existing_failures": 0,
+    "newly_introduced_failures": 0,
+    "status": "NO_REGRESSION"
+  },
+  "limitations": [
+    "Mutation score 100.0% over 4 LLM-authored mutants, executed in an isolated sandbox.",
+    "Regression scope: existing test files that passed at the pinned commit."
+  ]
+}

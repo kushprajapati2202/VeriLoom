@@ -1,0 +1,12 @@
+{
+  "task_dir": "<workspace>\\examples\\sample_packages\\shopcart\\harbor_tasks\\task_c669b3",
+  "task_id": "task_c669b3",
+  "starting_commit": "b6ba8b071313f40b015394c6806c907579462eb0",
+  "regression_targets": [
+    "tests/test_cart.py",
+    "tests/test_catalog.py",
+    "tests/test_orders.py"
+  ],
+  "patch_applies": true,
+  "warnings": []
+}

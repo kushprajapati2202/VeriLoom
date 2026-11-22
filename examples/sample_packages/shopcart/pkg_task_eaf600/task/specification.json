@@ -1,0 +1,97 @@
+{
+  "task_id": "task_eaf600",
+  "title": "Implement Product Lifecycle Status Tracking",
+  "summary": "To support inventory management, the Catalog needs to track the lifecycle status of products (e.g., 'active', 'discontinued', 'backordered'). This state transition logic will govern whether products can be restocked or taken from inventory.",
+  "repository_id": "repo_shopcart_1ebfcb",
+  "starting_commit": "b6ba8b071313f40b015394c6806c907579462eb0",
+  "feature_family": "state_transitions",
+  "difficulty": "advanced",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "statement": "Introduce a status field to the Product class and a state transition mechanism in the Catalog.",
+      "acceptance_criteria": [
+        "Product objects must now support a 'status' attribute defaulting to 'active'.",
+        "Catalog must provide a 'set_status(sku: str, status: str)' method to update product status.",
+        "Calling 'set_status' on a non-existent SKU must raise UnknownProductError."
+      ],
+      "priority": "must"
+    },
+    {
+      "id": "REQ-002",
+      "statement": "Enforce state-dependent constraints on stock operations.",
+      "acceptance_criteria": [
+        "If a product status is 'discontinued', 'take' operations must raise a ValueError.",
+        "If a product status is 'discontinued', 'restock' operations must raise a ValueError.",
+        "If a product status is 'backordered', 'take' operations must raise OutOfStockError regardless of current stock levels."
+      ],
+      "priority": "must"
+    }
+  ],
+  "constraints": [
+    "Status strings are limited to: 'active', 'discontinued', 'backordered'. Any other string must raise a ValueError.",
+    "The implementation must use the existing Catalog class structure without modifying the signature of existing methods."
+  ],
+  "out_of_scope": [
+    "Persistence of status to external databases or files.",
+    "Automatic status transitions based on stock levels (e.g., auto-discontinuing when stock hits zero)."
+  ],
+  "edge_cases": [
+    "Setting status to 'active' for a product that is already 'active' should succeed without error.",
+    "Attempting to 'take' from a 'backordered' product when stock is 10 should still raise OutOfStockError.",
+    "Empty string or invalid status values passed to 'set_status' must raise ValueError."
+  ],
+  "assumptions": [
+    "The 'status' field is a simple string property on the Product dataclass.",
+    "The Catalog maintains the status state in a new internal dictionary mapping SKUs to status strings."
+  ],
+  "repository_evidence": [
+    {
+      "path": "shopcart/catalog.py",
+      "symbol": "class UnknownProductError",
+      "reason": "Raised when a SKU is not in the catalogue.",
+      "line_start": 7,
+      "line_end": 8
+    },
+    {
+      "path": "shopcart/catalog.py",
+      "symbol": "class OutOfStockError",
+      "reason": "Raised when more units are requested than are in stock.",
+      "line_start": 11,
+      "line_end": 18
+    },
+    {
+      "path": "shopcart/catalog.py",
+      "symbol": "OutOfStockError.__init__",
+      "reason": "Method __init__",
+      "line_start": 14,
+      "line_end": 18
+    }
+  ],
+  "test_plan": [
+    {
+      "test_id": "TEST-001",
+      "requirement_id": "REQ-001",
+      "scenario": "Validate REQ-001",
+      "test_type": "happy_path",
+      "expected_outcome": "Observed criteria match"
+    },
+    {
+      "test_id": "TEST-002",
+      "requirement_id": "REQ-002",
+      "scenario": "Validate REQ-002",
+      "test_type": "boundary",
+      "expected_outcome": "Observed criteria match"
+    }
+  ],
+  "known_limitations": [
+    "Specification drafted by an LLM; validated by sandbox gates G1-G5.",
+    "Reference implementation, tests and mutants authored by LLM and validated in a sandbox."
+  ],
+  "behaviour_details": [
+    "Example 1: catalog.set_status('SKU1', 'discontinued') followed by catalog.take('SKU1', 1) raises ValueError('Product SKU1 is discontinued').",
+    "Example 2: catalog.set_status('SKU1', 'backordered') followed by catalog.take('SKU1', 1) raises OutOfStockError (even if stock is 100).",
+    "Example 3: catalog.set_status('SKU1', 'active') restores normal functionality for 'take' and 'restock'.",
+    "The Catalog class maintains a dictionary '_status' mapping SKUs to strings. Valid status values are 'active', 'discontinued', and 'backordered'. 'set_status' raises UnknownProductError if the SKU is not present. 'set_status' raises ValueError if the status string is not one of the three allowed values. 'take' raises ValueError if status is 'discontinued'. 'restock' raises ValueError if status is 'discontinued'. 'take' raises OutOfStockError if status is 'backordered', regardless of stock level. Default status for new products is 'active'."
+  ]
+}

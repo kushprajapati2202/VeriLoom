@@ -1,7 +1,9 @@
 """Validation runner executing baseline, reference, regression, and mutation gates."""
 
 import os
+import shutil
 import subprocess
+import tempfile
 import sys
 import time
 from pathlib import Path
@@ -21,6 +23,11 @@ from veriloom.test_generation.feature_tests import GeneratedTestSuite
 from veriloom.reference_solution.agent import ReferenceSolutionResult
 from veriloom.validation.mutation import MutationEngine
 
+_COPY_IGNORE = shutil.ignore_patterns(
+    ".git", ".venv", "venv", "__pycache__", ".pytest_cache", "exports", "harbor_tasks",
+    "node_modules", "demo_video", "*.egg-info", ".env",
+)
+
 
 class ValidationRunner:
     """Executes the 5-stage validation pipeline: baseline, build, feature tests, regression, and mutation."""
@@ -33,6 +40,7 @@ class ValidationRunner:
         ref_solution: ReferenceSolutionResult,
         test_suite: GeneratedTestSuite,
         repo_path: Path,
+        _in_copy: bool = False,
     ) -> ValidationReport:
         repo_path = repo_path.resolve()
         checks: List[CheckOutcome] = []
@@ -40,96 +48,16 @@ class ValidationRunner:
         target_file = repo_path / target_rel
         orig_content = target_file.read_text(encoding="utf-8", errors="ignore") if target_file.exists() else ""
 
-        is_read_only = bool(os.environ.get("VERCEL"))
-        if not is_read_only:
-            try:
-                probe = repo_path / ".write_probe"
-                probe.touch()
-                probe.unlink()
-            except (OSError, PermissionError):
-                is_read_only = True
-
-        # In-memory / Serverless validation mode for read-only sandboxes (e.g. Vercel)
-        if is_read_only:
-            t0 = time.time()
-            checks.append(
-                CheckOutcome(
-                    name="baseline_tests",
-                    status=CheckStatus.PASSED,
-                    command="pytest tests/test_contracts.py -q (in-memory syntax verified)",
-                    exit_code=0,
-                    duration_ms=int((time.time() - t0) * 1000) + 15,
-                    log_path="logs/baseline.log",
+        # Always validate in a throwaway copy of the repository: the user's working
+        # tree is never modified, and read-only hosts (e.g. Vercel) still get a real
+        # pytest run instead of assumed results.
+        if not _in_copy:
+            with tempfile.TemporaryDirectory(prefix="veriloom_val_") as tmp:
+                work = Path(tmp) / "repo"
+                shutil.copytree(repo_path, work, ignore=_COPY_IGNORE)
+                return cls.run_validation(
+                    spec, repo_record, ref_solution, test_suite, work, _in_copy=True
                 )
-            )
-
-            # Validate feature test suite compiles cleanly
-            compile(test_suite.test_code, test_suite.test_file_path, "exec")
-            checks.append(
-                CheckOutcome(
-                    name="feature_tests",
-                    status=CheckStatus.PASSED,
-                    command=f"pytest {test_suite.test_file_path} -q (AST verified)",
-                    exit_code=0,
-                    duration_ms=45,
-                    log_path="logs/feature_tests.log",
-                )
-            )
-
-            # Validate reference patch compiles cleanly in-memory
-            helper_code = ref_solution.patch_diff
-            lines = [l[1:] for l in helper_code.splitlines() if l.startswith("+") and not l.startswith("+++")]
-            applied_code = orig_content + "\n" + "\n".join(lines)
-            compile(applied_code, "<patched_solution>", "exec")
-
-            checks.append(
-                CheckOutcome(
-                    name="regression_tests",
-                    status=CheckStatus.PASSED,
-                    command="pytest tests/test_contracts.py -q (regression free)",
-                    exit_code=0,
-                    duration_ms=28,
-                    log_path="logs/regression_tests.log",
-                )
-            )
-
-            mutants = MutationEngine.synthesize_mutants(spec, target_rel)
-            mutation_results = [
-                MutationCheck(
-                    mutant_id=m.mutant_id,
-                    description=m.description,
-                    fault_type=m.fault_type,
-                    target_file=m.target_file,
-                    expected_killing_test=m.expected_failing_test,
-                    actual_killing_test=m.expected_failing_test,
-                    status=MutantStatus.KILLED,
-                )
-                for m in mutants
-            ]
-            score_pct = 100.0
-
-            regression_summary = RegressionSummary(
-                baseline_tests_count=3,
-                post_patch_tests_count=3,
-                passed_count=3,
-                pre_existing_failures=0,
-                newly_introduced_failures=0,
-                status="NO_REGRESSION",
-            )
-
-            return ValidationReport(
-                task_id=spec.task_id,
-                repository_commit=repo_record.starting_commit,
-                status=CheckStatus.PASSED,
-                checks=checks,
-                acceptance_coverage=test_suite.coverage_mapping,
-                mutation_checks=mutation_results,
-                regression_summary=regression_summary,
-                limitations=[
-                    "Controlled fault injection verified 100.0% mutant kill rate against generated test assertions.",
-                    "Isolated execution evaluated in in-memory working copy (Serverless sandbox).",
-                ],
-            )
 
         env = {**os.environ, "PYTHONPATH": str(repo_path)}
 
@@ -278,6 +206,6 @@ class ValidationRunner:
             regression_summary=regression_summary,
             limitations=[
                 f"Controlled fault injection achieved {score_pct}% kill rate on synthetically injected mutants.",
-                "Isolated execution evaluated in in-memory working copy.",
+                "Executed with pytest in an isolated temporary copy of the repository.",
             ],
         )

@@ -1,0 +1,49 @@
+--- a/shopcart/catalog.py
++++ b/shopcart/catalog.py
+@@ -33,6 +33,7 @@
+     def __init__(self) -> None:
+         self._products: Dict[str, Product] = {}
+         self._stock: Dict[str, int] = {}
++        self._status: Dict[str, str] = {}
+ 
+     def add_product(self, product: Product, stock: int = 0) -> None:
+         if product.unit_price < 0:
+@@ -41,6 +42,7 @@
+             raise ValueError("stock must be non-negative")
+         self._products[product.sku] = product
+         self._stock[product.sku] = stock
++        self._status[product.sku] = 'active'
+ 
+     def get(self, sku: str) -> Product:
+         try:
+@@ -60,10 +62,18 @@
+         self.get(sku)
+         return self._stock[sku]
+ 
++    def set_status(self, sku: str, status: str) -> None:
++        self.get(sku)
++        if status not in {'active', 'discontinued', 'backordered'}:
++            raise ValueError('Invalid status')
++        self._status[sku] = status
++
+     def restock(self, sku: str, quantity: int) -> int:
+         if quantity <= 0:
+             raise ValueError("quantity must be positive")
+         self.get(sku)
++        if self._status.get(sku, 'active') == 'discontinued':
++            raise ValueError(f'Product {sku} is discontinued')
+         self._stock[sku] += quantity
+         return self._stock[sku]
+ 
+@@ -72,6 +82,11 @@
+         if quantity <= 0:
+             raise ValueError("quantity must be positive")
+         available = self.stock_of(sku)
++        status = self._status.get(sku, 'active')
++        if status == 'discontinued':
++            raise ValueError(f'Product {sku} is discontinued')
++        if status == 'backordered':
++            raise OutOfStockError(sku, quantity, available)
+         if quantity > available:
+             raise OutOfStockError(sku, quantity, available)
+         self._stock[sku] = available - quantity

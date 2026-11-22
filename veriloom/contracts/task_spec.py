@@ -2,9 +2,20 @@
 
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from veriloom.contracts.repository import SourceEvidence
+
+
+def as_str_list(value) -> List[str]:
+    """Models sometimes return one string where a list is asked for; never split it into characters."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [line.strip(" -*	") for line in value.splitlines() if line.strip(" -*	")]
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if str(v).strip()]
+    return [str(value)]
 
 
 class FeatureFamily(str, Enum):
@@ -63,4 +74,13 @@ class TaskSpecification(BaseModel):
     )
     test_plan: List[TestPlanItem] = Field(default_factory=list, description="Planned test scenarios")
     known_limitations: List[str] = Field(default_factory=list, description="Acknowledged scope limitations")
+    behaviour_details: List[str] = Field(
+        default_factory=list,
+        description="Exact rules the hidden tests rely on (names, defaults, constants) so the task is solvable",
+    )
+
+    @field_validator("behaviour_details", mode="before")
+    @classmethod
+    def _coerce_details(cls, v):
+        return as_str_list(v)
 

@@ -1,0 +1,96 @@
+{
+  "task_id": "task_c398ca",
+  "title": "Implement Cart-Level Promotional Discounting",
+  "summary": "Introduce a mechanism to apply a percentage-based discount to the cart's subtotal. This requires tracking an active discount state within the Cart class and ensuring that tax calculations are applied to the discounted subtotal.",
+  "repository_id": "repo_shopcart_048f13",
+  "starting_commit": "b6ba8b071313f40b015394c6806c907579462eb0",
+  "feature_family": "business_rules",
+  "difficulty": "intermediate",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "statement": "Add support for applying a percentage discount to the Cart.",
+      "acceptance_criteria": [
+        "The Cart class must expose an 'apply_discount(percentage: float)' method.",
+        "The 'subtotal()' method must return the discounted subtotal (original subtotal * (1 - discount_rate)).",
+        "The 'summary()' method must calculate tax based on the discounted subtotal."
+      ],
+      "priority": "must"
+    },
+    {
+      "id": "REQ-002",
+      "statement": "Ensure discount state persistence and reset capability.",
+      "acceptance_criteria": [
+        "The 'clear()' method must reset the discount to 0%.",
+        "Applying a new discount must overwrite any existing discount."
+      ],
+      "priority": "must"
+    }
+  ],
+  "constraints": [
+    "The discount percentage must be between 0 and 100 (inclusive).",
+    "All monetary calculations must continue to use 'round_money' to maintain consistency with existing CartLine logic."
+  ],
+  "out_of_scope": [
+    "Support for coupon codes or alphanumeric discount strings.",
+    "Discounting individual items; only cart-level subtotal discounting is required.",
+    "Persistence of discounts across different Cart instances."
+  ],
+  "edge_cases": [
+    "Applying a 0% discount should result in no change to the subtotal.",
+    "Applying a 100% discount should result in a 0.0 subtotal and 0.0 tax.",
+    "Adding items to a cart that already has a discount applied must reflect the discount on the new total."
+  ],
+  "assumptions": [
+    "The discount is applied to the entire subtotal before tax is calculated.",
+    "The 'round_money' function is available for use in the new calculation logic."
+  ],
+  "repository_evidence": [
+    {
+      "path": "shopcart/cart.py",
+      "symbol": "class CartLine",
+      "reason": "Class definition for CartLine",
+      "line_start": 13,
+      "line_end": 21
+    },
+    {
+      "path": "shopcart/cart.py",
+      "symbol": "CartLine.line_total",
+      "reason": "Method line_total",
+      "line_start": 20,
+      "line_end": 21
+    },
+    {
+      "path": "shopcart/cart.py",
+      "symbol": "class CartSummary",
+      "reason": "Class definition for CartSummary",
+      "line_start": 25,
+      "line_end": 29
+    }
+  ],
+  "test_plan": [
+    {
+      "test_id": "TEST-001",
+      "requirement_id": "REQ-001",
+      "scenario": "Validate REQ-001",
+      "test_type": "happy_path",
+      "expected_outcome": "Observed criteria match"
+    },
+    {
+      "test_id": "TEST-002",
+      "requirement_id": "REQ-002",
+      "scenario": "Validate REQ-002",
+      "test_type": "boundary",
+      "expected_outcome": "Observed criteria match"
+    }
+  ],
+  "known_limitations": [
+    "Specification drafted by an LLM; validated by sandbox gates G1-G5.",
+    "Reference implementation, tests and mutants authored by LLM and validated in a sandbox."
+  ],
+  "behaviour_details": [
+    "Rule: discount_rate = percentage / 100.0. New Subtotal = round_money(original_subtotal * (1 - discount_rate)).",
+    "Example: Cart has items totaling 100.0. Tax rate is 0.08. Calling apply_discount(20) results in: subtotal=80.0, tax=6.4 (80 * 0.08), total=86.4.",
+    "The Cart class maintains a private _discount_percentage attribute initialized to 0.0. The apply_discount(percentage: float) method validates that the percentage is between 0 and 100 inclusive, raising ValueError otherwise. The subtotal() method calculates the original sum of line totals and applies the discount using the formula: round_money(original_subtotal * (1 - (percentage / 100.0))). The summary() method uses this discounted subtotal to calculate tax (discounted_subtotal * tax_rate) and total. The clear() method resets the discount to 0.0. Applying a new discount replaces the previous one. For example, a 100.0 subtotal with a 20% discount results in a 80.0 subtotal and 6.4 tax at an 8% tax rate."
+  ]
+}

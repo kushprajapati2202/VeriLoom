@@ -1,0 +1,151 @@
+{
+  "mode": "llm",
+  "provider": "GeminiProvider",
+  "model": "gemini-3.1-flash-lite",
+  "attempts": [
+    {
+      "number": 1,
+      "gates": [
+        {
+          "name": "fail_before",
+          "passed": true,
+          "detail": "Feature tests fail on the original code (import/collection error)",
+          "log_tail": "\n=================================== ERRORS ====================================\n________________________ ERROR collecting test session ________________________\nImportError while importing test module '<tmp>\\veriloom_sandbox_eniw16rf\\hidden_tests\\test_currency_validation.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\importlib\\__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\hidden_tests\\test_currency_validation.py:2: in <module>\n    from shopcart.money import format_money, UnsupportedCurrencyError\nE   ImportError: cannot import name 'UnsupportedCurrencyError' from 'shopcart.money' (<tmp>\\veriloom_sandbox_eniw16rf\\app\\shopcart\\money.py)\n=========================== short test summary info ===========================\nERROR \n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 0.23s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "pass_after",
+          "passed": true,
+          "detail": "All feature tests pass with the reference implementation",
+          "log_tail": ".....                                                                    [100%]\n5 passed in 0.07s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "regression",
+          "passed": true,
+          "detail": "3 existing test file(s) still pass",
+          "log_tail": "................                                                         [100%]\n16 passed in 0.12s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "mutation",
+          "passed": false,
+          "detail": "2/3 valid mutants killed; survived: MUT-004 (Change the supported currencies set.); invalid: MUT-001: `find` snippet occurs 0 times in the reference (must be exactly 1)",
+          "log_tail": "MUT-004: your tests still PASS when\n--- find\nSUPPORTED_CURRENCIES = {'USD', 'EUR', 'INR'}\n+++ replace\nSUPPORTED_CURRENCIES = {'USD', 'EUR'}\nAdd a test whose expected result differs between these two versions (e.g. an input exactly at the boundary or the case the faulty line mishandles)."
+        },
+        {
+          "name": "clarity",
+          "passed": true,
+          "detail": "Every asserted literal is stated in the task",
+          "log_tail": ""
+        }
+      ],
+      "passed": false,
+      "error": null
+    },
+    {
+      "number": 2,
+      "gates": [
+        {
+          "name": "fail_before",
+          "passed": true,
+          "detail": "Feature tests fail on the original code (import/collection error)",
+          "log_tail": "\n=================================== ERRORS ====================================\n________________________ ERROR collecting test session ________________________\nImportError while importing test module '<tmp>\\veriloom_sandbox_eniw16rf\\hidden_tests\\test_currency_validation.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\importlib\\__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\hidden_tests\\test_currency_validation.py:2: in <module>\n    from shopcart.money import format_money, UnsupportedCurrencyError\nE   ImportError: cannot import name 'UnsupportedCurrencyError' from 'shopcart.money' (<tmp>\\veriloom_sandbox_eniw16rf\\app\\shopcart\\money.py)\n=========================== short test summary info ===========================\nERROR \n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 0.22s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "pass_after",
+          "passed": true,
+          "detail": "All feature tests pass with the reference implementation",
+          "log_tail": "......                                                                   [100%]\n6 passed in 0.07s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "regression",
+          "passed": true,
+          "detail": "3 existing test file(s) still pass",
+          "log_tail": "................                                                         [100%]\n16 passed in 0.13s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+        },
+        {
+          "name": "mutation",
+          "passed": true,
+          "detail": "4/4 valid mutants killed",
+          "log_tail": ""
+        },
+        {
+          "name": "clarity",
+          "passed": true,
+          "detail": "Every asserted literal is stated in the task",
+          "log_tail": ""
+        }
+      ],
+      "passed": true,
+      "error": null
+    }
+  ],
+  "final_gates": {
+    "gates": [
+      {
+        "name": "fail_before",
+        "passed": true,
+        "detail": "Feature tests fail on the original code (import/collection error)",
+        "log_tail": "\n=================================== ERRORS ====================================\n________________________ ERROR collecting test session ________________________\nImportError while importing test module '<tmp>\\veriloom_sandbox_eniw16rf\\hidden_tests\\test_currency_validation.py'.\nHint: make sure your test modules/packages have valid Python names.\nTraceback:\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\importlib\\__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n..\\hidden_tests\\test_currency_validation.py:2: in <module>\n    from shopcart.money import format_money, UnsupportedCurrencyError\nE   ImportError: cannot import name 'UnsupportedCurrencyError' from 'shopcart.money' (<tmp>\\veriloom_sandbox_eniw16rf\\app\\shopcart\\money.py)\n=========================== short test summary info ===========================\nERROR \n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 0.22s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+      },
+      {
+        "name": "pass_after",
+        "passed": true,
+        "detail": "All feature tests pass with the reference implementation",
+        "log_tail": "......                                                                   [100%]\n6 passed in 0.07s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+      },
+      {
+        "name": "regression",
+        "passed": true,
+        "detail": "3 existing test file(s) still pass",
+        "log_tail": "................                                                         [100%]\n16 passed in 0.13s\n<home>\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:300: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the \"fixture\" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to \"function\" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))"
+      },
+      {
+        "name": "mutation",
+        "passed": true,
+        "detail": "4/4 valid mutants killed",
+        "log_tail": ""
+      },
+      {
+        "name": "clarity",
+        "passed": true,
+        "detail": "Every asserted literal is stated in the task",
+        "log_tail": ""
+      }
+    ],
+    "mutants": [
+      {
+        "id": "MUT-001",
+        "description": "Remove the check for the fallback currency validity.",
+        "fault_type": "condition_omission",
+        "status": "KILLED",
+        "detail": ""
+      },
+      {
+        "id": "MUT-002",
+        "description": "Change the error message format.",
+        "fault_type": "value_corruption",
+        "status": "KILLED",
+        "detail": ""
+      },
+      {
+        "id": "MUT-003",
+        "description": "Allow any currency if fallback is provided, bypassing validation.",
+        "fault_type": "missing_check",
+        "status": "KILLED",
+        "detail": ""
+      },
+      {
+        "id": "MUT-004",
+        "description": "Change the supported currencies set to exclude INR.",
+        "fault_type": "boundary_shift",
+        "status": "KILLED",
+        "detail": ""
+      }
+    ],
+    "regression_targets": [
+      "tests/test_cart.py",
+      "tests/test_catalog.py",
+      "tests/test_orders.py"
+    ],
+    "baseline_failing_files": []
+  }
+}
