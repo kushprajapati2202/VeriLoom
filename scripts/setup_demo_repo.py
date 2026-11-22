@@ -50,8 +50,16 @@ def main() -> int:
         def _force(func, path, _exc):
             os.chmod(path, 0o700)
             func(path)
-        shutil.rmtree(dest, onerror=_force)
-    shutil.copytree(src, dest, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache", "exports"))
+        # Empty the folder rather than deleting it: on Windows a terminal whose current
+        # directory is `dest` locks the folder itself, but not its contents.
+        for child in list(dest.iterdir()):
+            if child.is_dir():
+                shutil.rmtree(child, onerror=_force)
+            else:
+                os.chmod(child, 0o700)
+                child.unlink()
+    shutil.copytree(src, dest, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache", "exports"),
+                    dirs_exist_ok=True)
     # Normalise line endings so the tree (and therefore the SHA) is platform independent.
     for f in dest.rglob("*"):
         if f.is_file():

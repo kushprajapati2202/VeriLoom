@@ -43,18 +43,29 @@ def inspect(repo_path):
 
 @cli.command()
 @click.argument("repo_path", type=click.Path(exists=True), default=".")
-def opportunities(repo_path):
+@click.option("--mode", type=click.Choice(["auto", "llm", "templates"]), default="auto",
+              help="Which candidate list to show. auto = the list run-pipeline will use "
+                   "(LLM list when an API key is configured or --replay is used).")
+@click.option("--limit", default=7, show_default=True, help="How many candidates to show.")
+def opportunities(repo_path, mode, limit):
     """List ranked candidate feature opportunities for the repository."""
+    from veriloom.llm import LLMFactory, OfflineFallbackProvider
     path = Path(repo_path).resolve()
     record = RepositoryIntelligenceEngine.ingest(path)
     cap_map = RepositoryIntelligenceEngine.build_capability_map(
         path, record.repository_id, record.starting_commit
     )
-    opps = CandidateOpportunityEngine.discover_opportunities(cap_map)
+    extended = mode == "llm" or (
+        mode == "auto" and not isinstance(LLMFactory.get_provider(), OfflineFallbackProvider)
+    )
+    opps = CandidateOpportunityEngine.discover_opportunities(cap_map, extended_families=extended)
 
-    click.echo(f"\nDiscovered {len(opps)} candidate opportunities:")
-    for i, opp in enumerate(opps):
-        click.echo(f"  [{i}] ({opp.feature_family.value}) {opp.title} [Score: {opp.score}]")
+    label = "LLM-authored" if extended else "offline template"
+    click.echo(f"\nDiscovered {len(opps)} candidate opportunities ({label} mode), showing {min(limit, len(opps))}:")
+    for i, opp in enumerate(opps[:limit]):
+        target = opp.target_evidence[0].path if opp.target_evidence else "?"
+        click.echo(f"  [{i}] {opp.feature_family.value:<18} {target:<22} {opp.title}")
+    click.echo("\nRun one with: python -m veriloom run-pipeline <repo> --candidate-index <n>")
 
 
 @cli.command(name="run-pipeline")
@@ -66,7 +77,8 @@ def opportunities(repo_path):
               help="Save every model response to this JSONL file (for offline replay).")
 @click.option("--replay", "replay_path", default=None, type=click.Path(exists=True),
               help="Use recorded model responses instead of calling an API. Gates still run live.")
-def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, replay_path):
+@click.option("--task-id", default=None, help="Fixed task id (package becomes pkg_<task-id>); default is random.")
+def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, replay_path, task_id):
     """Execute complete 11-stage pipeline from repository ingestion to verified package."""
     path = Path(repo_path).resolve()
     out_path = Path(output_dir).resolve() if output_dir else None
@@ -87,7 +99,8 @@ def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, re
     pipeline = VeriLoomPipeline(path, out_path, llm_provider=provider)
 
     try:
-        result = pipeline.run_end_to_end(candidate_index=candidate_index, export_harbor=harbor)
+        result = pipeline.run_end_to_end(candidate_index=candidate_index, export_harbor=harbor,
+                                         custom_task_id=task_id)
         click.echo(f"\n[SUCCESS] Pipeline completed successfully!")
         click.echo(f"  - Task ID:           {result.task_id}")
         click.echo(f"  - Title:             {result.specification.title}")

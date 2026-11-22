@@ -138,8 +138,8 @@ class VeriLoomPipeline:
             raise RuntimeError("No candidate feature opportunities could be discovered.")
 
         selected_opp = opportunities[min(candidate_index, len(opportunities) - 1)]
-        log.info("[2] %d opportunities; selected %s (%s) in %s", len(opportunities), selected_opp.candidate_id,
-                 selected_opp.feature_family.value, selected_opp.target_evidence[0].path if selected_opp.target_evidence else "?")
+        log.info("[2] %d opportunities; selected [%d] %s in %s", len(opportunities),
+                 min(candidate_index, len(opportunities) - 1), selected_opp.feature_family.value, selected_opp.target_evidence[0].path if selected_opp.target_evidence else "?")
         log.info("    provider: %s%s", type(provider).__name__, "" if use_llm else " (offline templates)")
 
         # Previously packaged tasks form the variation catalogue, so novelty is measured

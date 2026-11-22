@@ -93,14 +93,24 @@ python -m veriloom verify-package --package-dir ./exports/<pkg_dir>
 ```
 
 ### 5. AI Coding Model Benchmarking & Evaluation Harness
-Score candidate AI coding models or agent patches against verified task packages with automated feature and regression tests:
+Score an agent's patch against a task package. Each submission runs in a throwaway copy of the repository at
+the package's pinned commit: the hidden feature tests must pass and every existing test that passed before must
+still pass. Your working tree is never modified.
 ```bash
-# Evaluate a passing candidate solution patch:
-python -m veriloom benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution ./examples/sample_packages/pkg_task_48e3bf/reference/implementation.patch --model "gemini-2.5-pro"
+python scripts/setup_demo_repo.py shopcart
+PKG=examples/sample_packages/shopcart/pkg_task_eaf600
 
-# Evaluate a faulty solution (demonstrating failure classification):
-python -m veriloom benchmark --package ./examples/sample_packages/pkg_task_48e3bf --solution "def broken(): pass" --model "flawed-agent"
+# The reference patch -> PASSED_FULL
+python -m veriloom benchmark --package $PKG --repo-path test_repos/shopcart \
+    --solution $PKG/reference/implementation.patch --model reference
+
+# An agent that doesn't implement the feature -> FEATURE_FAILED
+python -m veriloom benchmark --package $PKG --repo-path test_repos/shopcart \
+    --solution "def unrelated(): return 1" --model weak-agent
 ```
+A submission can be a unified diff, a full replacement of the target file, or a code snippet (appended).
+Verdicts: `PASSED_FULL`, `FEATURE_FAILED`, `REGRESSION_INTRODUCED`, `BUILD_ERROR` (patch doesn't apply or
+code doesn't compile), `TIMEOUT`.
 
 ### 6. Interactive Engineering Dashboard & REST API
 Launch the unified FastAPI control center and visual dashboard:

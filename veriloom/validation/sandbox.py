@@ -336,7 +336,8 @@ class SandboxValidator:
                 gates.append(GateResult(
                     name="regression",
                     passed=g3_ok,
-                    detail=f"{len(passing_files)} existing test file(s) still pass" if g3_ok else
+                    detail=(f"all {sum(1 for v in reg.results.values() if v == 'passed')} existing tests "
+                            f"in {len(passing_files)} file(s) still pass") if g3_ok else
                     f"Existing tests broken by the change: {', '.join(broken) or '(see log)'}",
                     log_tail=reg.tail(),
                 ))
@@ -393,7 +394,9 @@ class SandboxValidator:
                     passed=g4_ok,
                     detail=f"{len(killed)}/{len(valid)} valid mutants killed"
                     + (f"; survived: {'; '.join(survivors)}" if survivors else "")
-                    + (f"; invalid: {'; '.join(invalid)}" if invalid else "")
+                    # On success, malformed mutants are just noise; on failure they are feedback.
+                    + ((f" ({len(invalid)} malformed mutant(s) ignored)" if g4_ok
+                        else f"; invalid: {'; '.join(invalid)}") if invalid else "")
                     + ("" if len(valid) >= cls.MIN_VALID_MUTANTS
                        else f"; need at least {cls.MIN_VALID_MUTANTS} valid mutants"),
                     log_tail=survivor_diffs,

@@ -79,7 +79,7 @@ python -m veriloom run-pipeline test_repos/shopcart --candidate-index 1 \
 # Full live run (needs GEMINI_API_KEY, ANTHROPIC_API_KEY or OPENAI_API_KEY in .env)
 python scripts/generate_evidence.py test_repos/shopcart --candidates 0-6 --out /tmp/evidence --harbor
 
-pytest                                                        # 47 unit tests, offline
+pytest                                                        # 51 tests, offline
 ```
 
 ## Engineering decisions

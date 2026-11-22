@@ -1,9 +1,20 @@
-"""Benchmark evaluation runner scoring coding model submissions against task packages."""
+"""Benchmark evaluation runner scoring coding model submissions against task packages.
+
+A submission is evaluated in a throwaway copy of the repository at the package's
+pinned commit (the same sandbox the authoring gates use), so the user's working
+tree is never modified and results are reproducible.
+
+Submissions may be:
+  * a unified diff (what coding agents usually produce) - applied with `git apply`;
+  * a complete replacement for the task's target file (Python source that already
+    contains the target's existing definitions);
+  * a code snippet - appended to the target file (convenient for quick experiments).
+"""
 
 import json
-import os
+import py_compile
+import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -15,10 +26,75 @@ from veriloom.benchmark.models import (
     FailureCategory,
     ModelComparisonReport,
 )
+from veriloom.validation.sandbox import Sandbox
+
+_COPY_IGNORE = shutil.ignore_patterns(".git", ".venv", "venv", "__pycache__", ".pytest_cache",
+                                      "exports", "node_modules", "*.egg-info", ".env")
+
+
+def _is_diff(text: str) -> bool:
+    head = text.lstrip()
+    return head.startswith(("diff --git", "--- ")) or ("\n+++ " in text and "\n@@ " in text)
+
+
+def _top_level_names(code: str) -> set:
+    import ast
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return set()
+    return {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+
+
+class _CopySandbox(Sandbox):
+    """Fallback when the repository is not a git checkout containing the pinned commit."""
+
+    def __init__(self, repo_path: Path):  # noqa: D401 - deliberately skips Sandbox.__init__
+        self._tmp = tempfile.TemporaryDirectory(prefix="veriloom_bench_")
+        self.root = Path(self._tmp.name)
+        self.app = self.root / "app"
+        self.hidden = self.root / "hidden_tests"
+        self.hidden.mkdir()
+        shutil.copytree(repo_path, self.app, ignore=_COPY_IGNORE)
+        self._baseline = None
 
 
 class BenchmarkRunner:
     """Evaluates candidate coding model implementations against validated task packages."""
+
+    @staticmethod
+    def _infer_repo_root(task_package_dir: Path, target_rel: str) -> Path:
+        for cand in (Path.cwd(), task_package_dir.parent.parent, task_package_dir.parent):
+            if (cand / target_rel).exists():
+                return cand
+        return Path.cwd()
+
+    @classmethod
+    def _open_sandbox(cls, repo_root: Path, commit: Optional[str]) -> Sandbox:
+        if commit:
+            try:
+                return Sandbox(repo_root, commit)
+            except Exception:
+                pass
+        return _CopySandbox(repo_root)
+
+    @classmethod
+    def _apply(cls, sb: Sandbox, target_rel: str, submission: str) -> Optional[str]:
+        """Apply the submission inside the sandbox. Returns an error message or None."""
+        if _is_diff(submission):
+            patch = sb.root / "submission.patch"
+            patch.write_text(submission if submission.endswith("\n") else submission + "\n",
+                             encoding="utf-8", newline="\n")
+            proc = subprocess.run(["git", "apply", "--whitespace=nowarn", str(patch)],
+                                  cwd=sb.app, capture_output=True, text=True)
+            return None if proc.returncode == 0 else f"patch does not apply: {proc.stderr.strip()[:300]}"
+        original = sb.read(target_rel)
+        existing = _top_level_names(original)
+        if existing and existing <= _top_level_names(submission):
+            sb.write(target_rel, submission)  # full replacement of the target file
+        else:
+            sb.write(target_rel, original.rstrip("\n") + "\n\n" + submission + "\n")
+        return None
 
     @classmethod
     def evaluate_solution(
@@ -32,129 +108,73 @@ class BenchmarkRunner:
         spec_file = task_package_dir / "task" / "specification.json"
         if not spec_file.exists():
             raise FileNotFoundError(f"Invalid package directory, missing: {spec_file}")
-
         spec = json.loads(spec_file.read_text(encoding="utf-8"))
         task_id = spec.get("task_id", "unknown")
         evidence = spec.get("repository_evidence", [])
-        target_rel = evidence[0]["path"] if evidence else "veriloom/contracts/repository.py"
+        target_rel = evidence[0]["path"] if evidence else "src/main.py"
+        commit_file = task_package_dir / "repository" / "source-commit.txt"
+        commit = commit_file.read_text(encoding="utf-8").strip() if commit_file.exists() else None
 
-        if not repo_root:
-            if (Path.cwd() / target_rel).exists():
-                repo_root = Path.cwd()
-            elif (task_package_dir.parent.parent / target_rel).exists():
-                repo_root = task_package_dir.parent.parent
-            elif (task_package_dir.parent / target_rel).exists():
-                repo_root = task_package_dir.parent
-            else:
-                repo_root = Path.cwd()
-        repo_root = repo_root.resolve()
-        target_file = repo_root / target_rel
-        orig_content = target_file.read_text(encoding="utf-8", errors="ignore") if target_file.exists() else ""
-
-        # Locate feature test file in package
-        feature_test_dir = task_package_dir / "tests" / "feature"
-        test_files = list(feature_test_dir.glob("*.py"))
+        test_files = sorted((task_package_dir / "tests" / "feature").glob("*.py"))
         if not test_files:
-            raise FileNotFoundError(f"No feature test found in package: {feature_test_dir}")
-        test_file_path = test_files[0]
-        test_file_rel = f"tests/feature/{test_file_path.name}"
-        active_test_file = repo_root / test_file_rel
-        active_test_file.parent.mkdir(parents=True, exist_ok=True)
-        active_test_file.write_text(test_file_path.read_text(encoding="utf-8"), encoding="utf-8")
+            raise FileNotFoundError(f"No feature test found in package: {task_package_dir / 'tests' / 'feature'}")
+        test_file = test_files[0]
 
-        # Determine if submission is a patch or raw code
-        applied_code = orig_content
-        if "diff --git" in solution_code_or_patch or solution_code_or_patch.startswith("---"):
-            lines = [l[1:] for l in solution_code_or_patch.splitlines() if l.startswith("+") and not l.startswith("+++")]
-            applied_code = orig_content + "\n" + "\n".join(lines)
-        else:
-            applied_code = orig_content + "\n" + solution_code_or_patch
-
+        repo_root = (repo_root or cls._infer_repo_root(task_package_dir, target_rel)).resolve()
         t0 = time.time()
-        env = {**os.environ, "PYTHONPATH": str(repo_root)}
-        verdict = EvaluationVerdict.PASSED_FULL
-        category = FailureCategory.NONE
-        feature_passed = False
+        log: List[str] = []
+        feature_total = feature_passed_n = 0
+        feature_ok = False
         reg_clean = True
-        log_out = ""
+        verdict, category = EvaluationVerdict.PASSED_FULL, FailureCategory.NONE
 
-        try:
-            target_file.write_text(applied_code, encoding="utf-8")
+        with cls._open_sandbox(repo_root, commit) as sb:
+            baseline = sb.baseline()
+            protected = sorted(f for f, ok in baseline.file_ok.items() if ok)
+            hidden = str(sb.put_hidden_test(test_file.name, test_file.read_text(encoding="utf-8")))
 
-            # 1. Run Feature Tests
-            feat_proc = subprocess.run(
-                [sys.executable, "-m", "pytest", str(active_test_file), "-q"],
-                capture_output=True,
-                text=True,
-                cwd=str(repo_root),
-                env=env,
-            )
-            log_out += f"--- FEATURE TESTS ---\n{feat_proc.stdout}\n{feat_proc.stderr}\n"
-
-            if feat_proc.returncode != 0:
-                verdict = EvaluationVerdict.FEATURE_FAILED
-                category = FailureCategory.ASSERTION_FAILURE
-                feature_passed = False
-            else:
-                feature_passed = True
-
-            # 2. Run Regression Suite
-            baseline_target = None
-            if (repo_root / "tests" / "test_contracts.py").exists():
-                baseline_target = "tests/test_contracts.py"
-            elif (repo_root / "tests").exists():
-                found = [
-                    str(p.relative_to(repo_root)).replace("\\", "/")
-                    for p in (repo_root / "tests").glob("test_*.py")
-                    if not p.name.startswith("test_feature")
-                ]
-                baseline_target = found[0] if found else "tests"
-
-            if baseline_target:
-                reg_proc = subprocess.run(
-                    [sys.executable, "-m", "pytest", baseline_target, "-q"],
-                    capture_output=True,
-                    text=True,
-                    cwd=str(repo_root),
-                    env=env,
-                )
-                log_out += f"--- REGRESSION TESTS ---\n{reg_proc.stdout}\n{reg_proc.stderr}\n"
-                reg_returncode = reg_proc.returncode
-            else:
-                reg_returncode = 0
-
-            if reg_returncode != 0:
-                verdict = EvaluationVerdict.REGRESSION_INTRODUCED
-                category = FailureCategory.REGRESSION_BREAK
-                reg_clean = False
-
-        except SyntaxError as e:
-            verdict = EvaluationVerdict.BUILD_ERROR
-            category = FailureCategory.SYNTAX_ERROR
-            log_out += f"Syntax error: {e}\n"
-        finally:
-            # Restore files
-            if active_test_file.exists():
-                active_test_file.unlink()
-            if orig_content or target_file.exists():
+            error = cls._apply(sb, target_rel, solution_code_or_patch)
+            if error is None:
                 try:
-                    target_file.write_text(orig_content, encoding="utf-8")
-                except Exception:
-                    pass
+                    py_compile.compile(str(sb.app / target_rel), doraise=True)
+                except py_compile.PyCompileError as e:
+                    error = f"syntax error: {e.msg.strip()[:300]}"
+                    category = FailureCategory.SYNTAX_ERROR
+            if error is not None:
+                log.append(error)
+                verdict = EvaluationVerdict.BUILD_ERROR
+                if category == FailureCategory.NONE:
+                    category = FailureCategory.EXECUTION_CRASH
+                reg_clean = False
+            else:
+                feat = sb.pytest([hidden])
+                log.append("--- FEATURE TESTS ---\n" + feat.tail(40))
+                feature_total = len(feat.results)
+                feature_passed_n = sum(1 for v in feat.results.values() if v == "passed")
+                feature_ok = feat.exit_code == 0 and feature_total > 0
+                if feat.exit_code == 124:
+                    verdict, category = EvaluationVerdict.TIMEOUT, FailureCategory.TIMEOUT_EXCEEDED
+                elif not feature_ok:
+                    verdict, category = EvaluationVerdict.FEATURE_FAILED, FailureCategory.ASSERTION_FAILURE
 
-        duration_ms = int((time.time() - t0) * 1000)
+                if protected:
+                    reg = sb.pytest(protected)
+                    log.append("--- REGRESSION TESTS ---\n" + reg.tail(40))
+                    reg_clean = reg.exit_code == 0
+                    if not reg_clean and verdict == EvaluationVerdict.PASSED_FULL:
+                        verdict, category = EvaluationVerdict.REGRESSION_INTRODUCED, FailureCategory.REGRESSION_BREAK
 
         return BenchmarkResult(
             task_id=task_id,
             model_name=model_name,
             verdict=verdict,
-            feature_tests_passed=feature_passed,
-            feature_tests_count=3,
-            feature_tests_passed_count=3 if feature_passed else 0,
+            feature_tests_passed=feature_ok,
+            feature_tests_count=feature_total,
+            feature_tests_passed_count=feature_passed_n,
             regression_clean=reg_clean,
             failure_category=category,
-            execution_time_ms=duration_ms,
-            log_output=log_out,
+            execution_time_ms=int((time.time() - t0) * 1000),
+            log_output="\n".join(log),
         )
 
     @classmethod
@@ -170,10 +190,10 @@ class BenchmarkRunner:
         for model_name, code in submissions.items():
             res = cls.evaluate_solution(task_package_dir, code, model_name=model_name, repo_root=repo_root)
             results.append(res)
-
-            pass_score = 1.0 if res.verdict == EvaluationVerdict.PASSED_FULL else 0.0
             leaderboard[model_name] = {
-                "pass_rate": pass_score,
+                "pass_rate": 1.0 if res.verdict == EvaluationVerdict.PASSED_FULL else 0.0,
+                "feature_tests_passed": float(res.feature_tests_passed_count),
+                "feature_tests_total": float(res.feature_tests_count),
                 "regression_free": 1.0 if res.regression_clean else 0.0,
                 "latency_ms": float(res.execution_time_ms),
             }
@@ -185,4 +205,3 @@ class BenchmarkRunner:
             results=results,
             leaderboard=leaderboard,
         )
-

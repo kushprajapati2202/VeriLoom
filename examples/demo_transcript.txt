@@ -1,0 +1,102 @@
+# Demo dress rehearsal transcript
+# Every command in DEMO_SCRIPT.md, run in order with no API key (replay mode). Total: 50 s.
+# Use as an on-stage fallback if the terminal misbehaves.
+
+$ python scripts/setup_demo_repo.py shopcart
+<workspace>\test_repos\shopcart
+commit b6ba8b071313f40b015394c6806c907579462eb0
+
+$ python -m veriloom inspect test_repos/shopcart
+[*] Inspecting repository at: <workspace>\test_repos\shopcart
+[+] Pinned Commit SHA: b6ba8b071313f40b015394c6806c907579462eb0
+[+] Detected Language: python
+[+] Package Manager:   pip
+[+] Test Command:      pytest
+[+] Working Tree:      Clean
+[+] Files Tracked:     12
+[+] Extension Points:  38
+[+] Existing Tests:    3
+
+$ python -m veriloom opportunities test_repos/shopcart --mode llm
+
+Discovered 21 candidate opportunities (LLM-authored mode), showing 7:
+  [0] business_rules     shopcart/cart.py       Add domain policy rules to cart
+  [1] state_transitions  shopcart/catalog.py    Add a stateful lifecycle to catalog
+  [2] data_validation    shopcart/orders.py     Add input validation with error reporting to orders
+  [3] error_handling     shopcart/money.py      Add failure recovery behaviour to money
+  [4] data_lifecycle     shopcart/cart.py       Add versioned/expiring data to cart
+  [5] api_behaviour      shopcart/catalog.py    Add an extended public API contract to catalog
+  [6] permissions_auth   shopcart/orders.py     Add access-control rules to orders
+
+Run one with: python -m veriloom run-pipeline <repo> --candidate-index <n>
+
+$ python -m veriloom run-pipeline test_repos/shopcart --candidate-index 1 --replay examples/recordings/shopcart_lifecycle.jsonl --output-dir demo_out --task-id demo
+[*] Launching VeriLoom AI pipeline against: <workspace>\test_repos\shopcart
+[*] Replaying recorded model responses from examples/recordings/shopcart_lifecycle.jsonl (all gates run live)
+    [1] Inspecting repository <workspace>\test_repos\shopcart
+    [2] 21 opportunities; selected [1] state_transitions in shopcart/catalog.py
+        provider: ReplayProvider
+    [3] Specification (round 1): Product Lifecycle State Management
+    [author] attempt 1/3: asking model for implementation, tests and mutants
+    [gate] fail_before  PASS  Feature tests fail on the original code
+    [gate] pass_after   PASS  All feature tests pass with the reference implementation
+    [gate] regression   PASS  all 16 existing tests in 3 file(s) still pass
+    [gate] mutation     PASS  3/3 valid mutants killed (1 malformed mutant(s) ignored)
+    [gate] clarity      PASS  Every asserted literal is stated in the task
+    [5-8] Validation status: passed
+    [9] Novelty 1.00 against 0 catalogued task(s)
+
+[SUCCESS] Pipeline completed successfully!
+  - Task ID:           demo
+  - Title:             Product Lifecycle State Management
+  - Feature Family:    state_transitions
+  - Validation Status: PASSED
+  - Regression Status: NO_REGRESSION
+  - Mutants Tested:    3
+  - Novelty Score:     1.0
+  - Package Directory: <workspace>\demo_out\pkg_demo
+  - Replay Verified:   True
+  - Authoring Mode:    llm (1 attempt(s))
+
+$ python scripts/replay_package.py --package demo_out/pkg_demo
+[*] Replaying and verifying package at: <workspace>\demo_out\pkg_demo
+[PASS] All SHA-256 package checksums verified successfully.
+[PASS] Manifest integrity and entrypoints verified.
+[SUCCESS] Task package is valid, tamper-free, and reproducible.
+
+$ python -m veriloom benchmark --package demo_out/pkg_demo --repo-path test_repos/shopcart --solution demo_out/pkg_demo/reference/implementation.patch --model reference
+[*] Benchmarking 'reference' against package pkg_demo...
+
+[BENCHMARK RESULT]
+  - Model:            reference
+  - Verdict:          PASSED_FULL
+  - Feature Tests:    PASSED
+  - Regression Suite: CLEAN
+  - Failure Category: none
+  - Latency:          5897 ms
+
+$ python -m veriloom benchmark --package demo_out/pkg_demo --repo-path test_repos/shopcart --solution def unrelated(): return 1 --model weak-agent
+[*] Benchmarking 'weak-agent' against package pkg_demo...
+
+[BENCHMARK RESULT]
+  - Model:            weak-agent
+  - Verdict:          FEATURE_FAILED
+  - Feature Tests:    FAILED
+  - Regression Suite: CLEAN
+  - Failure Category: assertion_failure
+  - Latency:          5933 ms
+
+$ python -m veriloom export-harbor demo_out/pkg_demo --repo test_repos/shopcart
+[+] Harbor task written: <workspace>\demo_out\harbor_tasks\demo
+  - Starting commit:    b6ba8b071313f40b015394c6806c907579462eb0
+  - Regression targets: tests/test_cart.py, tests/test_catalog.py, tests/test_orders.py
+  - Reference patch:    applies cleanly
+[*] Replaying Harbor trials locally (oracle + no-op)...
+  - Oracle reward: 1  (expected 1)
+  - No-op reward:  0  (expected 0)
+  - Report:        <workspace>\demo_out\harbor_tasks\demo.local-check.json
+[PASS] Task is solvable and its tests detect the missing feature.
+
+Run under Harbor (requires Docker):
+  harbor run -p <workspace>\demo_out\harbor_tasks\demo -a oracle
+
