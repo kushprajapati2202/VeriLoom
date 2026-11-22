@@ -1,0 +1,21 @@
+[
+  {
+    "id": "REQ-001",
+    "statement": "Add support for applying a percentage discount to the Cart.",
+    "acceptance_criteria": [
+      "The Cart class must expose an 'apply_discount(percentage: float)' method.",
+      "The 'subtotal()' method must return the discounted subtotal (original subtotal * (1 - discount_rate)).",
+      "The 'summary()' method must calculate tax based on the discounted subtotal."
+    ],
+    "priority": "must"
+  },
+  {
+    "id": "REQ-002",
+    "statement": "Ensure discount state persistence and reset capability.",
+    "acceptance_criteria": [
+      "The 'clear()' method must reset the discount to 0%.",
+      "Applying a new discount must overwrite any existing discount."
+    ],
+    "priority": "must"
+  }
+]

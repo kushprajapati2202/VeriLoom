@@ -1,5 +1,6 @@
 """End-to-end pipeline orchestrator for VeriLoom AI."""
 
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -27,6 +28,9 @@ from veriloom.variation import VariationEngine
 from veriloom.packaging import HarborExporter, PackageBuilder, PackageVerifier
 from veriloom.llm import LLMFactory, LLMProvider, OfflineFallbackProvider
 from veriloom.authoring import LLMTaskAuthor
+
+
+log = logging.getLogger("veriloom")
 
 
 class PipelineRunResult(BaseModel):
@@ -75,6 +79,19 @@ class VeriLoomPipeline:
             
         self.task_catalogue: List[TaskSpecification] = []
 
+    def _load_catalogue(self, commit: str) -> List[TaskSpecification]:
+        out: List[TaskSpecification] = []
+        if not self.output_base_dir.exists():
+            return out
+        for spec_file in sorted(self.output_base_dir.glob("*/task/specification.json")):
+            try:
+                spec = TaskSpecification.model_validate_json(spec_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if spec.repository_id and spec not in out:
+                out.append(spec)
+        return out
+
     def run_end_to_end(
         self,
         candidate_index: int = 0,
@@ -82,21 +99,32 @@ class VeriLoomPipeline:
         export_harbor: bool = False,
     ) -> PipelineRunResult:
         # Stage 1: Ingestion and Capability Mapping
+        log.info("[1] Inspecting repository %s", self.repo_path)
         repo_rec = RepositoryIntelligenceEngine.ingest(self.repo_path)
         cap_map = RepositoryIntelligenceEngine.build_capability_map(
             self.repo_path, repo_rec.repository_id, repo_rec.starting_commit
         )
 
+        provider = self.llm_provider or LLMFactory.get_provider()
+        use_llm = not isinstance(provider, OfflineFallbackProvider)
+
         # Stage 2: Candidate Opportunity Discovery
-        opportunities = CandidateOpportunityEngine.discover_opportunities(cap_map)
+        opportunities = CandidateOpportunityEngine.discover_opportunities(
+            cap_map, extended_families=use_llm
+        )
         if not opportunities:
             raise RuntimeError("No candidate feature opportunities could be discovered.")
 
         selected_opp = opportunities[min(candidate_index, len(opportunities) - 1)]
+        log.info("[2] %d opportunities; selected %s (%s) in %s", len(opportunities), selected_opp.candidate_id,
+                 selected_opp.feature_family.value, selected_opp.target_evidence[0].path if selected_opp.target_evidence else "?")
+        log.info("    provider: %s%s", type(provider).__name__, "" if use_llm else " (offline templates)")
+
+        # Previously packaged tasks form the variation catalogue, so novelty is measured
+        # across runs rather than only within this process.
+        catalogue = self._load_catalogue(repo_rec.starting_commit)
 
         # Stage 3: Task Specification Generation
-        provider = self.llm_provider or LLMFactory.get_provider()
-        use_llm = not isinstance(provider, OfflineFallbackProvider)
         spec = TaskSpecGenerator.generate_from_opportunity(
             selected_opp,
             repo_rec.repository_id,
@@ -104,8 +132,10 @@ class VeriLoomPipeline:
             task_id=custom_task_id,
             llm_provider=provider,
             repo_root=self.repo_path,
+            existing_tasks=[f"{t.title}: {t.summary}" for t in catalogue][-15:],
         )
 
+        log.info("[3] Specification: %s", spec.title)
         # Stage 4: Feasibility and Grounding Gate
         feas_report = FeasibilityGate.evaluate(spec, self.repo_path)
         if not feas_report.is_feasible:
@@ -131,6 +161,7 @@ class VeriLoomPipeline:
             authoring_log = {
                 "mode": "llm",
                 "provider": type(provider).__name__,
+                "model": getattr(provider, "last_model_used", None) or getattr(provider, "model", None),
                 "attempts": [a.model_dump() for a in authored.attempts],
                 "final_gates": authored.gate_report.model_dump(),
             }
@@ -142,10 +173,13 @@ class VeriLoomPipeline:
                 spec, repo_rec, ref_solution, test_suite, self.repo_path
             )
 
+        log.info("[5-8] Validation status: %s", val_report.status.value)
         # Stage 9: Meaningful Variation Analysis
-        var_report = VariationEngine.evaluate_variation(spec, self.task_catalogue)
+        var_report = VariationEngine.evaluate_variation(spec, catalogue + self.task_catalogue)
         self.task_catalogue.append(spec)
 
+        log.info("[9] Novelty %.2f against %d catalogued task(s)", var_report.novelty_assessment.overall_novelty_score,
+                 len(var_report.comparison_catalogue))
         # Stage 10: Task Package Builder
         pkg_dir = PackageBuilder.build_package(
             spec,

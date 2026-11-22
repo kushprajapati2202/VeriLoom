@@ -20,7 +20,20 @@ Source Code Excerpt:
 ```
 
 FEATURE FAMILY: {feature_family}
+FAMILY GUIDANCE: {family_guidance}
 DIFFICULTY: {difficulty}
+
+DESIGN RULES FOR A STRONG BENCHMARK TASK:
+- Derive the feature from what THIS file actually does (its domain objects, functions and data). A reader
+  should not be able to transplant the task onto an unrelated file. Extend or interact with existing
+  functions/classes rather than adding an isolated helper.
+- The task must require real reasoning: several interacting rules, an ordering/precedence decision,
+  or a state that persists across calls. Avoid one-line features.
+- State every rule precisely (exact names, defaults, thresholds, rounding, error types) with at least one
+  worked example containing concrete input and output values, so a solver can implement it without guessing.
+- It must be implementable with the standard library only, inside the target file.
+- Make it clearly DIFFERENT in behaviour from these tasks already generated for this repository:
+{existing_tasks}
 
 RESPOND IN VALID JSON ONLY:
 {{
@@ -56,6 +69,9 @@ RESPOND IN VALID JSON ONLY:
   ],
   "assumptions": [
     "Domain assumption"
+  ],
+  "behaviour_details": [
+    "Exact rule with names, defaults and a worked example, e.g. 'apply_discount(cart, \"SAVE10\") on a 50.0 cart returns 45.0'"
   ]
 }}
 """

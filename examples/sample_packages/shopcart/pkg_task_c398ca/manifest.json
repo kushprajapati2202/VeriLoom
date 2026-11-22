@@ -1,0 +1,43 @@
+{
+  "manifest_version": "1.0.0",
+  "package_id": "pkg_task_c398ca",
+  "task_id": "task_c398ca",
+  "created_at": "2026-11-22T12:01:02.737936Z",
+  "generator_version": "veriloom-ai@1.0.0",
+  "repository": {
+    "name": "repo_shopcart_048f13",
+    "pinned_commit": "b6ba8b071313f40b015394c6806c907579462eb0",
+    "branch": "main",
+    "language": "python",
+    "framework": null
+  },
+  "entrypoints": {
+    "specification": "task/specification.json",
+    "reference_patch": "reference/implementation.patch",
+    "feature_tests": "tests/feature/",
+    "regression_tests": "tests/regression/",
+    "validation_report": "validation/validation-report.json",
+    "variation_report": "validation/variation-report.json"
+  },
+  "checksums": {
+    "reference/changed-files.txt": "sha256:89b7f4a0b2e41f6890ab0803893824a61e9ae25caf8328d4e1696f48b79d450b",
+    "reference/implementation.patch": "sha256:ef0513f78b7feea3b434d3d9c7c76441b79f47f3cb62f06a36d23f3a4858c6e2",
+    "repository/source-commit.txt": "sha256:900eb258ddfbdccc4d2e02453d23bb4275abf6907fb6cd97517f654283aec850",
+    "task/acceptance-criteria.json": "sha256:b4ff4697e32119842ace4cd76ab0b72e92855aebe7c7a96764210a1d597535ef",
+    "task/specification.json": "sha256:a05ae19cf542fca94a0226233ad869010fbcdbbfd8563c7a32aa96ce1c3c71eb",
+    "task/test-plan.json": "sha256:409577dce2bcae2ee1d872a5e2c45a2b91b9d967e0fde0206916adcd5fcc07f8",
+    "tests/test-to-requirement-map.json": "sha256:4754acee80604aa40f3151de306068d6c5503ad73069fa2333b37b3bd67d4118",
+    "tests/feature/test_cart_discount.py": "sha256:d72bbebda3eea4ed64b699bcf47966851d5a963bfaa255996f5b37ebd51e0c56",
+    "validation/authoring-log.json": "sha256:c85f5ecf371a5d88de53c2047538463c37d92f97e7045ce02772fdc583831526",
+    "validation/mutation-results.json": "sha256:abeb4edb77e739342b3b2efc01aac519bed7a9dc0c1f74ae40f7636f55233aa1",
+    "validation/validation-report.json": "sha256:c995b6465606b58d12771652483722d8e4ca8b51875775bd4d3c091fd4bb687e",
+    "validation/variation-report.json": "sha256:feb58354388706c35fb16f87d793a945f4f4275b35a79aeee211b5872cca9e65"
+  },
+  "verdict": {
+    "status": "VALIDATED",
+    "reference_solution_passes": true,
+    "regression_free": true,
+    "mutation_score_pct": 100.0,
+    "meaningful_variation_confirmed": true
+  }
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "test_id": "TEST-001",
+    "requirement_id": "REQ-001",
+    "scenario": "Validate REQ-001",
+    "test_type": "happy_path",
+    "expected_outcome": "Observed criteria match"
+  },
+  {
+    "test_id": "TEST-002",
+    "requirement_id": "REQ-002",
+    "scenario": "Validate REQ-002",
+    "test_type": "boundary",
+    "expected_outcome": "Observed criteria match"
+  }
+]

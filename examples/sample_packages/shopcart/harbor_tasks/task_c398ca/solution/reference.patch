@@ -1,0 +1,34 @@
+--- a/shopcart/cart.py
++++ b/shopcart/cart.py
+@@ -38,6 +38,7 @@
+         self.catalog = catalog
+         self.tax_rate = tax_rate
+         self._lines: Dict[str, CartLine] = {}
++        self._discount_percentage = 0.0
+ 
+     def add_item(self, sku: str, quantity: int = 1) -> CartLine:
+         if quantity <= 0:
+@@ -69,8 +70,17 @@
+     def is_empty(self) -> bool:
+         return not self._lines
+ 
++    def _get_raw_subtotal(self) -> float:
++        return sum(line.line_total for line in self._lines.values())
++
+     def subtotal(self) -> float:
+-        return round_money(sum(line.line_total for line in self._lines.values()))
++        raw_subtotal = self._get_raw_subtotal()
++        return round_money(raw_subtotal * (1 - (self._discount_percentage / 100.0)))
++
++    def apply_discount(self, percentage: float) -> None:
++        if not 0 <= percentage <= 100:
++            raise ValueError("percentage must be between 0 and 100")
++        self._discount_percentage = float(percentage)
+ 
+     def summary(self) -> CartSummary:
+         subtotal = self.subtotal()
+@@ -84,3 +94,4 @@
+ 
+     def clear(self) -> None:
+         self._lines.clear()
++        self._discount_percentage = 0.0

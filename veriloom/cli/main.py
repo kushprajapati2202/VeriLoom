@@ -67,6 +67,10 @@ def run_pipeline(repo_path, candidate_index, output_dir, harbor):
     path = Path(repo_path).resolve()
     out_path = Path(output_dir).resolve() if output_dir else None
 
+    import logging
+    logging.basicConfig(level=logging.INFO, format="    %(message)s")
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     click.echo(f"[*] Launching VeriLoom AI pipeline against: {path}")
     pipeline = VeriLoomPipeline(path, out_path)
 

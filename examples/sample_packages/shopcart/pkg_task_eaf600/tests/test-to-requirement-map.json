@@ -1,0 +1,24 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "criteria_total": 3,
+    "criteria_covered": 3,
+    "test_names": [
+      "test_set_status_updates_state",
+      "test_set_status_unknown_sku",
+      "test_set_status_invalid_value"
+    ],
+    "status": "fully_covered"
+  },
+  {
+    "requirement_id": "REQ-002",
+    "criteria_total": 3,
+    "criteria_covered": 3,
+    "test_names": [
+      "test_discontinued_blocks_take",
+      "test_discontinued_blocks_restock",
+      "test_backordered_blocks_take"
+    ],
+    "status": "fully_covered"
+  }
+]

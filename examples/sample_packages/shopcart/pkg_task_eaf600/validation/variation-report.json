@@ -1,0 +1,32 @@
+{
+  "task_id": "task_eaf600",
+  "feature_family": "state_transitions",
+  "difficulty": "advanced",
+  "behavioural_tags": [
+    "lifecycle_guardrail",
+    "state_transition_machine",
+    "state_transitions"
+  ],
+  "comparison_catalogue": [
+    {
+      "compared_task_id": "task_c398ca",
+      "feature_family": "business_rules",
+      "text_cosine_similarity": 0.24,
+      "ast_token_overlap_jaccard": 0.0,
+      "shared_behaviour_tags": [
+        "state_transition_machine"
+      ],
+      "unique_behaviour_tags": [
+        "lifecycle_guardrail",
+        "state_transitions"
+      ],
+      "behavioural_distance_score": 0.828,
+      "is_superficial_variant": false
+    }
+  ],
+  "novelty_assessment": {
+    "overall_novelty_score": 0.828,
+    "is_meaningfully_novel": true,
+    "justification": "Task exhibits meaningful behavioural distance (0.828) from existing catalogue entries."
+  }
+}

@@ -19,6 +19,7 @@ from veriloom.contracts.manifest import (
 )
 from veriloom.reference_solution.agent import ReferenceSolutionResult
 from veriloom.test_generation.feature_tests import GeneratedTestSuite
+from veriloom.packaging.scrub import scrub_text
 
 
 class PackageBuilder:
@@ -31,6 +32,36 @@ class PackageBuilder:
             while chunk := f.read(65536):
                 h.update(chunk)
         return "sha256:" + h.hexdigest()
+
+    UNCHECKSUMMED = {"metadata/checksums.txt", "manifest.json", "README.md"}
+
+    @classmethod
+    def write_checksums(cls, pkg_dir: Path) -> Dict[str, str]:
+        checksums: Dict[str, str] = {}
+        for root, _, files in os.walk(pkg_dir):
+            for file in sorted(files):
+                full_p = Path(root) / file
+                rel_p = str(full_p.relative_to(pkg_dir)).replace("\\", "/")
+                if rel_p not in cls.UNCHECKSUMMED:
+                    checksums[rel_p] = cls.sha256_file(full_p)
+        (pkg_dir / "metadata").mkdir(parents=True, exist_ok=True)
+        (pkg_dir / "metadata" / "checksums.txt").write_text(
+            "\n".join(f"{h}  {f}" for f, h in sorted(checksums.items())) + "\n",
+            encoding="utf-8",
+        )
+        return checksums
+
+    @classmethod
+    def scrub_and_reseal(cls, pkg_dir: Path) -> None:
+        """Scrub local paths from an existing package and recompute its checksums."""
+        for f in (pkg_dir / "validation").glob("*.json"):
+            f.write_text(scrub_text(f.read_text(encoding="utf-8")), encoding="utf-8")
+        checksums = cls.write_checksums(pkg_dir)
+        manifest_path = pkg_dir / "manifest.json"
+        if manifest_path.exists():
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            data["checksums"] = checksums
+            manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     @staticmethod
     def _mutation_score(val_report: ValidationReport) -> float:
@@ -100,7 +131,7 @@ class PackageBuilder:
 
         # 5. Write Validation Reports
         (pkg_dir / "validation" / "validation-report.json").write_text(
-            val_report.model_dump_json(indent=2), encoding="utf-8"
+            scrub_text(val_report.model_dump_json(indent=2)), encoding="utf-8"
         )
         (pkg_dir / "validation" / "mutation-results.json").write_text(
             json.dumps([m.model_dump() for m in val_report.mutation_checks], indent=2), encoding="utf-8"
@@ -111,21 +142,11 @@ class PackageBuilder:
 
         if authoring_log is not None:
             (pkg_dir / "validation" / "authoring-log.json").write_text(
-                json.dumps(authoring_log, indent=2, default=str), encoding="utf-8"
+                scrub_text(json.dumps(authoring_log, indent=2, default=str)), encoding="utf-8"
             )
 
         # 6. Compute Checksums
-        checksums: Dict[str, str] = {}
-        for root, _, files in os.walk(pkg_dir):
-            for file in sorted(files):
-                full_p = Path(root) / file
-                rel_p = str(full_p.relative_to(pkg_dir)).replace("\\", "/")
-                checksums[rel_p] = cls.sha256_file(full_p)
-
-        (pkg_dir / "metadata" / "checksums.txt").write_text(
-            "\n".join(f"{h}  {f}" for f, h in sorted(checksums.items())) + "\n",
-            encoding="utf-8",
-        )
+        checksums = cls.write_checksums(pkg_dir)
 
         # 7. Write Manifest
         manifest = PackageManifest(

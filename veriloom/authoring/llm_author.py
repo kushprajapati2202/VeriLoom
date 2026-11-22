@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from veriloom.contracts.task_spec import TaskSpecification
+from veriloom.contracts.task_spec import TaskSpecification, as_str_list
 from veriloom.contracts.validation import (
     AcceptanceCoverage,
     CheckOutcome,
@@ -43,6 +44,8 @@ from veriloom.validation.sandbox import (
     discover_test_targets,
 )
 
+log = logging.getLogger("veriloom")
+
 MAX_TARGET_CHARS = 60_000
 
 SYSTEM_PROMPT = """You are an expert software engineer building benchmark tasks for evaluating AI coding agents.
@@ -64,7 +67,8 @@ Target file: `{target_file}` (import it as `{module}`).
 {source}
 ```
 
-## Existing test conventions (excerpt of `{example_test_path}`)
+## Existing tests that use this module and MUST keep passing ({example_test_path})
+Do not change the signature, defaults or behaviour of anything these tests call.
 ```python
 {example_test}
 ```
@@ -200,6 +204,33 @@ def _test_names(test_code: str) -> List[str]:
     return [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name.startswith("test")]
 
 
+MAX_TEST_CONTEXT_CHARS = 24_000
+
+
+def _relevant_tests(sb: Sandbox, test_files: List[str], module: str):
+    """Existing tests that exercise the target module, so the model sees what it must not break."""
+    short = module.rsplit(".", 1)[-1]
+    scored = []
+    for f in test_files:
+        src = sb.read(f)
+        hits = src.count(module) * 3 + len(re.findall(rf"\b{re.escape(short)}\b", src))
+        scored.append((hits, f, src))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    chosen = [t for t in scored if t[0] > 0] or scored[:1]
+    parts, names, used = [], [], 0
+    for _, f, src in chosen:
+        room = MAX_TEST_CONTEXT_CHARS - used
+        if room <= 0:
+            break
+        src = src[:room]
+        parts.append(f"# ---- {f} ----\n{src}")
+        names.append(f)
+        used += len(src)
+    if not parts:
+        return "(none)", "# no tests yet"
+    return ", ".join(names), "\n\n".join(parts)
+
+
 class LLMTaskAuthor:
     def __init__(self, provider: LLMProvider, max_attempts: int = 3):
         self.provider = provider
@@ -226,8 +257,7 @@ class LLMTaskAuthor:
             if len(source) > MAX_TARGET_CHARS:
                 raise AuthoringError(f"{target} is {len(source)} chars; too large to rewrite reliably")
             examples = discover_test_targets(sb.app)
-            example_path = examples[0] if examples else "(none)"
-            example_src = "\n".join(sb.read(examples[0]).splitlines()[:120]) if examples else "# no tests yet"
+            example_path, example_src = _relevant_tests(sb, examples, module)
 
             prompt = AUTHOR_PROMPT.format(
                 spec_text=spec_text(spec),
@@ -245,17 +275,20 @@ class LLMTaskAuthor:
             for n in range(1, self.max_attempts + 1):
                 attempt = Attempt(number=n)
                 attempts.append(attempt)
+                log.info("[author] attempt %d/%d: asking model for implementation, tests and mutants",
+                         n, self.max_attempts)
                 try:
                     raw = self.provider.generate(prompt, SYSTEM_PROMPT)
                     draft = parse_draft(raw)
                 except Exception as e:  # malformed output or provider error: ask again
                     attempt.error = f"{type(e).__name__}: {e}"
+                    log.info("[author] attempt %d unusable: %s", n, attempt.error[:200])
                     if "FORMAT REMINDER" not in prompt:
                         prompt += ("\n\nFORMAT REMINDER: a previous reply could not be parsed "
                                    f"({attempt.error}). Use exactly the four === markers.")
                     continue
 
-                details = [str(d) for d in draft.meta.get("behaviour_details", [])]
+                details = as_str_list(draft.meta.get("behaviour_details"))
                 req_tests = {k: list(v) for k, v in (draft.meta.get("requirement_tests") or {}).items()}
                 unmapped = [r.id for r in spec.requirements if not req_tests.get(r.id)]
                 mutants = [Mutant(**m) for m in draft.meta.get("mutants", []) if m.get("find") is not None]
@@ -278,6 +311,8 @@ class LLMTaskAuthor:
                                                  "requirement_tests has no tests for: " + ", ".join(unmapped)))
                 attempt.gates = [g.model_dump() for g in report.gates]
                 attempt.passed = report.passed
+                for g in report.gates:
+                    log.info("[gate] %-12s %s  %s", g.name, "PASS" if g.passed else "FAIL", g.detail[:140])
                 if report.passed:
                     return self._result(spec, target, source, draft, test_name, req_tests, details, report,
                                         attempts, commit)

@@ -49,6 +49,36 @@ def snapshot_repo(repo_path: Path, commit: str, dest: Path) -> None:
         tar.extractall(dest, filter="data")
 
 
+def apply_mutant(content: str, find: str, replace: str):
+    """Apply a find/replace mutant. Returns (mutated, match_count); mutated is None unless
+    exactly one match. Falls back to an indentation-insensitive line match because models
+    often re-indent the snippet they copy; the replacement is re-indented to match."""
+    if not find:
+        return None, 0
+    count = content.count(find)
+    if count == 1:
+        return content.replace(find, replace), 1
+    if count > 1:
+        return None, count
+    lines = content.split("\n")
+    want = [l.strip() for l in find.strip("\n").split("\n")]
+    if not any(want):
+        return None, 0
+    hits = [i for i in range(len(lines) - len(want) + 1)
+            if all(lines[i + k].strip() == want[k] for k in range(len(want)))]
+    if len(hits) != 1:
+        return None, len(hits)
+    i = hits[0]
+    file_indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
+    find_lines = find.strip("\n").split("\n")
+    find_indent = find_lines[0][: len(find_lines[0]) - len(find_lines[0].lstrip())]
+    new_block = []
+    for l in replace.strip("\n").split("\n"):
+        body = l[len(find_indent):] if l.startswith(find_indent) else l.lstrip()
+        new_block.append(file_indent + body if l.strip() else l)
+    return "\n".join(lines[:i] + new_block + lines[i + len(want):]), 1
+
+
 def discover_test_targets(repo_dir: Path) -> List[str]:
     """Existing test files in the repository (relative paths)."""
     if (repo_dir / "tests").is_dir():
@@ -296,14 +326,13 @@ class SandboxValidator:
             outcomes: List[MutantOutcome] = []
             if g2_ok:
                 for m in mutants:
-                    count = new_content.count(m.find) if m.find else 0
-                    if count != 1:
+                    mutated, count = apply_mutant(new_content, m.find, m.replace)
+                    if mutated is None:
                         outcomes.append(MutantOutcome(
                             id=m.id, description=m.description, fault_type=m.fault_type, status="INVALID",
                             detail=f"`find` snippet occurs {count} times in the reference (must be exactly 1)",
                         ))
                         continue
-                    mutated = new_content.replace(m.find, m.replace)
                     if mutated == new_content:
                         outcomes.append(MutantOutcome(id=m.id, description=m.description,
                                                       fault_type=m.fault_type, status="INVALID",
@@ -321,6 +350,13 @@ class SandboxValidator:
                 ratio = len(killed) / len(valid) if valid else 0.0
                 g4_ok = len(valid) >= cls.MIN_VALID_MUTANTS and ratio >= cls.MIN_KILL_RATIO
                 survivors = [f"{o.id} ({o.description})" for o in valid if o.status == "SURVIVED"]
+                by_id = {m.id: m for m in mutants}
+                survivor_diffs = "\n\n".join(
+                    f"{o.id}: your tests still PASS when\n--- find\n{by_id[o.id].find}\n+++ replace\n"
+                    f"{by_id[o.id].replace}\nAdd a test whose expected result differs between these two versions "
+                    "(e.g. an input exactly at the boundary or the case the faulty line mishandles)."
+                    for o in valid if o.status == "SURVIVED" and o.id in by_id
+                )
                 invalid = [f"{o.id}: {o.detail}" for o in outcomes if o.status == "INVALID"]
                 gates.append(GateResult(
                     name="mutation",
@@ -330,6 +366,7 @@ class SandboxValidator:
                     + (f"; invalid: {'; '.join(invalid)}" if invalid else "")
                     + ("" if len(valid) >= cls.MIN_VALID_MUTANTS
                        else f"; need at least {cls.MIN_VALID_MUTANTS} valid mutants"),
+                    log_tail=survivor_diffs,
                 ))
             else:
                 gates.append(GateResult(name="mutation", passed=False,
@@ -343,7 +380,11 @@ class SandboxValidator:
             name="clarity",
             passed=not unexplained,
             detail="Every asserted literal is stated in the task" if not unexplained else
-            "Tests assert values the task never states: " + ", ".join(unexplained),
+            "Tests assert values the task never states: " + ", ".join(unexplained)
+            + ". FIX: keep the tests and add to META.behaviour_details one worked-example sentence per value "
+            "that contains the number literally and explains how it arises (e.g. 'Cart with 2 x 30.00 items "
+            "has subtotal 60.0; coupon SAVE10 makes it 50.0'). A solver only sees the task text and "
+            "behaviour_details, so a value missing there cannot be derived.",
         ))
 
         return GateReport(

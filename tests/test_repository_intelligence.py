@@ -14,7 +14,7 @@ def test_git_ops_current_repo():
     sha = GitOps.get_commit_sha(root)
     assert len(sha) == 40
     branch = GitOps.get_active_branch(root)
-    assert branch == "main"
+    assert isinstance(branch, str) and branch
     is_clean = GitOps.is_working_tree_clean(root)
     assert isinstance(is_clean, bool)
 

@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
@@ -82,27 +83,55 @@ class OfflineFallbackProvider(LLMProvider):
 class GeminiProvider(LLMProvider):
     """Google Gemini API Provider."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+    RETRYABLE = {429, 500, 502, 503, 504}
+
+    def __init__(self, api_key: str, model: str = "gemini-3.5-flash", fallback_models: Optional[list] = None):
         self.api_key = api_key
         self.model = model
-        self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        # Models tried in order when the primary is overloaded or out of quota.
+        self.models = [model] + [m for m in (fallback_models or []) if m and m != model]
+        self.last_model_used: Optional[str] = None
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        contents = []
+        body: Dict[str, Any] = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            # Authoring replies carry a whole file, a test module and mutants.
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 65536},
+        }
         if system_prompt:
-            contents.append({"role": "user", "parts": [{"text": system_prompt}]})
-            contents.append({"role": "model", "parts": [{"text": "Understood. I will strictly follow all instructions."}]})
-        contents.append({"role": "user", "parts": [{"text": prompt}]})
+            body["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
+        # The key travels in a header, never in the URL, so it cannot leak into
+        # exception messages or the authoring logs saved inside task packages.
+        headers = {"Content-Type": "application/json", "x-goog-api-key": self.api_key}
+        last_error = "no attempt made"
         with httpx.Client(timeout=300.0) as client:
-            resp = client.post(
-                self.endpoint,
-                headers={"Content-Type": "application/json"},
-                json={"contents": contents, "generationConfig": {"temperature": 0.2}},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            for attempt in range(4):
+                for model in self.models:
+                    try:
+                        resp = client.post(f"{self.BASE}/{model}:generateContent", headers=headers, json=body)
+                    except httpx.TransportError as e:
+                        last_error = f"{model}: {type(e).__name__}"
+                        continue
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        cand = (data.get("candidates") or [{}])[0]
+                        if cand.get("finishReason") == "MAX_TOKENS":
+                            last_error = f"{model}: response truncated (MAX_TOKENS)"
+                            continue
+                        parts = cand.get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+                        if text.strip():
+                            self.last_model_used = model
+                            return text
+                        last_error = f"{model}: empty response"
+                        continue
+                    last_error = f"{model}: HTTP {resp.status_code}"
+                    if resp.status_code not in self.RETRYABLE and resp.status_code != 404:
+                        raise RuntimeError(f"Gemini request failed ({last_error}): {resp.text[:300]}")
+                time.sleep(min(60, 8 * (2 ** attempt)))
+        raise RuntimeError(f"Gemini unavailable after retries ({last_error})")
 
 
 class ClaudeProvider(LLMProvider):
