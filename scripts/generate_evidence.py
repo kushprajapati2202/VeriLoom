@@ -7,9 +7,13 @@ keeps going when a candidate fails, and writes:
   <out>/evidence-summary.json      machine-readable results, failures included
   <out>/EVIDENCE.md                human-readable table for judges
 
-    python scripts/setup_demo_repo.py shopcart
-    python scripts/generate_evidence.py test_repos/shopcart --candidates 0-6 \
-        --out examples/sample_packages/shopcart
+    python scripts/setup_click.py                       # clone pallets/click at 8.5.1 + test venv
+    python -m veriloom ideate target_repos/click --out evidence/click/ideas.json
+    python scripts/generate_evidence.py target_repos/click --ideas evidence/click/ideas.json \
+        --candidates 0,2,6 --out evidence/click --harbor --record
+
+Every model response is recorded per candidate (recordings/cand_<n>.jsonl), so a run can be
+replayed without an API key (--replay): all gates and the Harbor export still execute live.
 """
 
 import argparse
@@ -43,6 +47,9 @@ def main() -> int:
     ap.add_argument("--candidates", default="0-6")
     ap.add_argument("--out", required=True)
     ap.add_argument("--harbor", action="store_true")
+    ap.add_argument("--ideas", default=None, help="ideas.json from `veriloom ideate` (candidate list)")
+    ap.add_argument("--record", action="store_true", help="save model responses to <out>/recordings/")
+    ap.add_argument("--replay", action="store_true", help="replay <out>/recordings/ instead of calling a model")
     ap.add_argument("--backfill-harbor-check", action="store_true",
                     help="only replay oracle/no-op for already exported tasks and refresh EVIDENCE.md")
     args = ap.parse_args()
@@ -52,10 +59,10 @@ def main() -> int:
         summary_path = out / "evidence-summary.json"
         results = json.loads(summary_path.read_text(encoding="utf-8"))
         for row in results:
-            row.update(planned(Path(args.repo), row["candidate_index"]))
+            row.update(planned(Path(args.repo), row["candidate_index"], args.ideas))
             task_dir = out / "harbor_tasks" / str(row.get("task_id"))
             if row.get("status") == "validated" and task_dir.is_dir():
-                row.update(harbor_check(task_dir))
+                row.update(harbor_check(task_dir, Path(args.repo)))
                 print(row["task_id"], row.get("harbor_oracle_reward"), row.get("harbor_noop_reward"), flush=True)
         summary_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
         write_markdown(out, results)
@@ -65,8 +72,10 @@ def main() -> int:
     for noisy in ("httpx", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
-    provider = LLMFactory.get_provider()
-    if isinstance(provider, OfflineFallbackProvider):
+    from veriloom.llm import RecordingProvider, ReplayProvider
+
+    base_provider = None if args.replay else LLMFactory.get_provider()
+    if base_provider is not None and isinstance(base_provider, OfflineFallbackProvider):
         print("No LLM key configured; evidence must come from the LLM path.", file=sys.stderr)
         return 2
 
@@ -75,13 +84,23 @@ def main() -> int:
     summary_path = out / "evidence-summary.json"
     results = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else []
 
-    pipeline = VeriLoomPipeline(Path(args.repo), out, llm_provider=provider)
+    ideas = Path(args.ideas).resolve() if args.ideas else None
     for idx in parse_range(args.candidates):
         print(f"\n=== candidate {idx} ===", flush=True)
+        rec = out / "recordings" / f"cand_{idx:02d}.jsonl"
+        if args.replay:
+            provider = ReplayProvider(rec)
+        elif args.record:
+            rec.unlink(missing_ok=True)
+            provider = RecordingProvider(base_provider, rec)
+        else:
+            provider = base_provider
+        pipeline = VeriLoomPipeline(Path(args.repo), out, llm_provider=provider)
         t0 = time.time()
-        row = {"candidate_index": idx, "repo": Path(args.repo).name, **planned(Path(args.repo), idx)}
+        row = {"candidate_index": idx, "repo": Path(args.repo).name, **planned(Path(args.repo), idx, args.ideas)}
         try:
-            r = pipeline.run_end_to_end(candidate_index=idx, export_harbor=args.harbor)
+            r = pipeline.run_end_to_end(candidate_index=idx, export_harbor=args.harbor, ideas_path=ideas,
+                                        custom_task_id=f"click_{idx:02d}" if ideas else None)
             log = json.loads((Path(r.package_dir) / "validation" / "authoring-log.json").read_text(encoding="utf-8"))
             gates = {g["name"]: g for g in log["final_gates"]["gates"]}
             row.update(
@@ -102,7 +121,7 @@ def main() -> int:
                 package_verified=r.package_verified,
             )
             if r.harbor_task_dir:
-                row.update(harbor_check(Path(r.harbor_task_dir)))
+                row.update(harbor_check(Path(r.harbor_task_dir), Path(args.repo)))
         except Exception as e:
             attempts = getattr(e, "attempts", None) or getattr(getattr(e, "__cause__", None), "attempts", None)
             row.update(status="rejected", error=f"{type(e).__name__}: {str(e)[:400]}",
@@ -116,8 +135,14 @@ def main() -> int:
     return 0
 
 
-def planned(repo: Path, idx: int) -> dict:
+def planned(repo: Path, idx: int, ideas_path=None) -> dict:
     """Family and target the candidate was meant to cover (recorded for rejected ones too)."""
+    if ideas_path:
+        from veriloom.task_generation.ideation import FeatureIdeation
+
+        idea = FeatureIdeation.load(Path(ideas_path))[idx]
+        return {"planned_family": idea.get("family"), "planned_target": idea.get("target_file"),
+                "planned_title": idea.get("title")}
     from veriloom.repository_intelligence import RepositoryIntelligenceEngine as R
     from veriloom.task_generation import CandidateOpportunityEngine as C
     repo = repo.resolve()
@@ -129,12 +154,12 @@ def planned(repo: Path, idx: int) -> dict:
             "planned_target": o.target_evidence[0].path if o.target_evidence else None}
 
 
-def harbor_check(task_dir: Path) -> dict:
-    """Independent replay: oracle must score 1, an untouched repo must score 0."""
+def harbor_check(task_dir: Path, repo: Path) -> dict:
+    """Docker-free replay: oracle must score 1.0, an untouched repo must score 0.0."""
     from veriloom.packaging.harbor_local import HarborLocalRunner
     from veriloom.packaging.scrub import scrub_text
     try:
-        rep = HarborLocalRunner.check(task_dir)
+        rep = HarborLocalRunner.check(task_dir, repo_path=repo.resolve())
         (task_dir.parent / f"{task_dir.name}.local-check.json").write_text(scrub_text(rep.model_dump_json(indent=2)), encoding="utf-8")
         return {"harbor_oracle_reward": rep.oracle.reward, "harbor_noop_reward": rep.nop.reward}
     except Exception as e:

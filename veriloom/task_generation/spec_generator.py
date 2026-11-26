@@ -60,7 +60,8 @@ class TaskSpecGenerator:
             try:
                 root = repo_root or Path.cwd()
                 src_path = root / target_file
-                excerpt = src_path.read_text(encoding="utf-8", errors="ignore")[:12000] if src_path.exists() else ""
+                full_src = src_path.read_text(encoding="utf-8", errors="ignore") if src_path.exists() else ""
+                excerpt = focused_excerpt(full_src, [e.symbol for e in opportunity.target_evidence if e.symbol])
 
                 prompt = TASK_SPECIFICATION_PROMPT.format(
                     repo_name=repository_id,
@@ -71,6 +72,15 @@ class TaskSpecGenerator:
                     family_guidance=FAMILY_GUIDANCE.get(opportunity.feature_family, ""),
                     existing_tasks="\n".join(f"  - {t}" for t in (existing_tasks or [])) or "  (none yet)",
                 )
+                if opportunity.candidate_id.startswith("idea_"):
+                    extends = ", ".join(e.symbol for e in opportunity.target_evidence if e.symbol) or target_file
+                    prompt += (
+                        "\n\nSEED FEATURE IDEA (from repository-level ideation; specify exactly this feature):\n"
+                        f"Title: {opportunity.title}\nSummary: {opportunity.summary}\n"
+                        f"Extends: {extends}\nWhy it is new: {opportunity.feasibility_notes}\n"
+                        "This is a real, widely used library: name new parameters/methods the way its maintainers "
+                        "would, keep them opt-in, and make every rule testable through the public API."
+                    )
                 if feedback:
                     prompt += "\n\nFEEDBACK ON YOUR PREVIOUS SPECIFICATION:\n" + feedback
                 data = provider.generate_json(prompt)
@@ -284,3 +294,45 @@ class TaskSpecGenerator:
             ],
         )
 
+
+
+MAX_EXCERPT_CHARS = 30_000
+
+
+def focused_excerpt(src: str, symbols: List[str], limit: int = MAX_EXCERPT_CHARS) -> str:
+    """The whole file when it fits; otherwise the module header plus the source of the symbols the
+    feature extends ('Class', 'Class.method' or 'function'), so large files stay grounded."""
+    if len(src) <= limit:
+        return src
+    import ast
+
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return src[:limit]
+    lines = src.splitlines()
+    picked = []
+    for sym in symbols:
+        parts = sym.replace("()", "").split(".")
+        for node in tree.body:
+            if getattr(node, "name", None) != parts[0]:
+                continue
+            target = node
+            if len(parts) > 1 and isinstance(node, ast.ClassDef):
+                target = next((n for n in node.body if getattr(n, "name", None) == parts[1]), node)
+            if target is node and isinstance(node, ast.ClassDef):
+                # whole class is too long: header and __init__ in full
+                init = next((n for n in node.body if getattr(n, "name", None) == "__init__"), None)
+                picked.append((node.lineno, init.end_lineno if init else node.lineno + 40))
+            else:
+                picked.append((target.lineno, target.end_lineno))
+    header_end = next((n.lineno - 1 for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))), 60)
+    out = ["\n".join(lines[: min(header_end, 80)])]
+    used = len(out[0])
+    for start, end in sorted(set(picked)):
+        chunk = "\n".join(lines[start - 1:end])[: max(0, limit - used)]
+        out.append(f"# ... (lines {start}-{end})\n{chunk}")
+        used += len(chunk)
+        if used >= limit:
+            break
+    return "\n\n".join(out)

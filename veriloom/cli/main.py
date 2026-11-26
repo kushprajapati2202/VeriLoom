@@ -68,6 +68,52 @@ def opportunities(repo_path, mode, limit):
     click.echo("\nRun one with: python -m veriloom run-pipeline <repo> --candidate-index <n>")
 
 
+@cli.command(name="setup-target")
+@click.argument("repo_path", type=click.Path(exists=True))
+def setup_target(repo_path):
+    """Create the isolated test environment (venv) for a target repository. Run once."""
+    from veriloom.validation.target_env import setup_target_env, venv_dir
+    path = Path(repo_path).resolve()
+    click.echo(f"[*] Creating test environment for {path.name} in {venv_dir(path)}")
+    py = setup_target_env(path)
+    click.echo(f"[+] Ready: {py}")
+
+
+@cli.command()
+@click.argument("repo_path", type=click.Path(exists=True))
+@click.option("--count", default=10, show_default=True, help="How many feature ideas to propose.")
+@click.option("--out", "out_path", default=None, type=click.Path(),
+              help="Where to write ideas.json (default: <repo>/exports/ideas.json).")
+@click.option("--record", "record_path", default=None, type=click.Path(), help="Save the model response (JSONL).")
+@click.option("--replay", "replay_path", default=None, type=click.Path(exists=True), help="Replay a recorded response.")
+def ideate(repo_path, count, out_path, record_path, replay_path):
+    """Propose a portfolio of distinct, repository-specific feature ideas (ideas.json)."""
+    from veriloom.llm import LLMFactory, RecordingProvider, ReplayProvider
+    from veriloom.task_generation.ideation import FeatureIdeation
+
+    path = Path(repo_path).resolve()
+    if replay_path:
+        provider = ReplayProvider(Path(replay_path))
+    elif record_path:
+        provider = RecordingProvider(LLMFactory.get_provider(), Path(record_path))
+    else:
+        provider = LLMFactory.get_provider()
+    import subprocess as _sp
+    commit = _sp.run(["git", "rev-parse", "HEAD"], cwd=path, capture_output=True, text=True).stdout.strip()
+    ideas = FeatureIdeation.propose(provider, path, path.name, count=count, base_commit=commit)
+    out = Path(out_path) if out_path else path / "exports" / "ideas.json"
+    FeatureIdeation.save(ideas, out)
+    rejected = FeatureIdeation.last_rejected
+    if rejected:
+        FeatureIdeation.save(rejected, out.with_name("ideas.rejected.json"))
+        for idea in rejected:
+            click.echo(f"  [x] {idea.get('title')}: {idea['rejected']}")
+    for i, idea in enumerate(ideas):
+        click.echo(f"  [{i}] {idea.get('family', '?'):<18} {idea['target_file']:<32} {idea.get('title')}")
+    click.echo(f"\n[+] {len(ideas)} ideas written to {out}")
+    click.echo(f"    Run one: python -m veriloom run-pipeline {repo_path} --ideas {out} --candidate-index <n>")
+
+
 @cli.command(name="run-pipeline")
 @click.argument("repo_path", type=click.Path(exists=True), default=".")
 @click.option("--candidate-index", default=0, help="Index of opportunity to generate.")
@@ -78,7 +124,9 @@ def opportunities(repo_path, mode, limit):
 @click.option("--replay", "replay_path", default=None, type=click.Path(exists=True),
               help="Use recorded model responses instead of calling an API. Gates still run live.")
 @click.option("--task-id", default=None, help="Fixed task id (package becomes pkg_<task-id>); default is random.")
-def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, replay_path, task_id):
+@click.option("--ideas", "ideas_path", default=None, type=click.Path(exists=True),
+              help="Candidate list from `veriloom ideate` (ideas.json); --candidate-index picks one.")
+def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, replay_path, task_id, ideas_path):
     """Execute complete 11-stage pipeline from repository ingestion to verified package."""
     path = Path(repo_path).resolve()
     out_path = Path(output_dir).resolve() if output_dir else None
@@ -100,7 +148,8 @@ def run_pipeline(repo_path, candidate_index, output_dir, harbor, record_path, re
 
     try:
         result = pipeline.run_end_to_end(candidate_index=candidate_index, export_harbor=harbor,
-                                         custom_task_id=task_id)
+                                         custom_task_id=task_id,
+                                         ideas_path=Path(ideas_path) if ideas_path else None)
         click.echo(f"\n[SUCCESS] Pipeline completed successfully!")
         click.echo(f"  - Task ID:           {result.task_id}")
         click.echo(f"  - Title:             {result.specification.title}")
@@ -186,14 +235,15 @@ def export_harbor(package_path, repo_path, output_dir, check):
     )
     click.echo(f"[+] Harbor task written: {result.task_dir}")
     click.echo(f"  - Starting commit:    {result.starting_commit}")
-    click.echo(f"  - Regression targets: {', '.join(result.regression_targets) or 'none'}")
+    click.echo(f"  - fail_to_pass:       {result.fail_to_pass} tests")
+    click.echo(f"  - pass_to_pass:       {result.pass_to_pass} tests")
     click.echo(f"  - Reference patch:    {'applies cleanly' if result.patch_applies else 'DOES NOT APPLY'}")
     for w in result.warnings:
         click.echo(f"  [WARN] {w}")
 
     if check:
         click.echo("[*] Replaying Harbor trials locally (oracle + no-op)...")
-        report = HarborLocalRunner.check(Path(result.task_dir))
+        report = HarborLocalRunner.check(Path(result.task_dir), repo_path=Path(repo_path).resolve())
         report_path = Path(result.task_dir).parent / f"{result.task_id}.local-check.json"
         report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
         click.echo(f"  - Oracle reward: {report.oracle.reward}  (expected 1)")

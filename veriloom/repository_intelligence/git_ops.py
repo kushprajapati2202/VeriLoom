@@ -41,12 +41,12 @@ class GitOps:
         except Exception:
             pass
 
-        # Fallback to packaged source-commit file if .git is not deployed (serverless)
-        source_commit_file = repo_path / "examples" / "sample_packages" / "pkg_task_48e3bf" / "repository" / "source-commit.txt"
-        if source_commit_file.exists():
-            return source_commit_file.read_text(encoding="utf-8").strip()
-
-        return "98cc778000000000000000000000000000000000"
+        # The serverless dashboard is deployed without .git; it only browses packages, so a
+        # placeholder is acceptable there. Everywhere else an unknown commit is an error: tasks
+        # must be pinned to a real 40-character SHA.
+        if os.getenv("VERCEL"):
+            return "0" * 40
+        raise GitOpsError(f"Cannot determine the commit of {repo_path}: is it a git repository?")
 
     @classmethod
     def get_active_branch(cls, repo_path: Path) -> Optional[str]:

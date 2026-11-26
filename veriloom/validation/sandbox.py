@@ -28,8 +28,10 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from veriloom.validation.clarity import unexplained_literals
+from veriloom.validation.target_env import install_copy, target_python
 
 PYTEST_TIMEOUT_SEC = 600
+PLUGIN_DIR = Path(__file__).resolve().parent  # holds veriloom_outcomes.py
 _IGNORED_DIRS = {".git", ".venv", "venv", "node_modules", "build", "dist", "__pycache__", "exports", "_vendor"}
 
 
@@ -101,6 +103,17 @@ def mutant_variants(content: str, find: str, replace: str) -> List[str]:
     return out
 
 
+def module_for(path: str) -> str:
+    """Import name of a source file, honouring the `src/` layout (src/click/types.py -> click.types)."""
+    path = path.replace("\\", "/")
+    if path.startswith("src/"):
+        path = path[4:]
+    path = path[:-3] if path.endswith(".py") else path
+    if path.endswith("/__init__"):
+        path = path[: -len("/__init__")]
+    return path.replace("/", ".")
+
+
 def discover_test_targets(repo_dir: Path) -> List[str]:
     """Existing test files in the repository (relative paths)."""
     if (repo_dir / "tests").is_dir():
@@ -124,6 +137,8 @@ class PytestRun(BaseModel):
     results: Dict[str, str] = Field(default_factory=dict)
     # test file -> True if every test in it passed or was skipped
     file_ok: Dict[str, bool] = Field(default_factory=dict)
+    # full pytest node id -> outcome (only when run with outcomes=True)
+    nodes: Dict[str, str] = Field(default_factory=dict)
     collection_error: bool = False
 
     def tail(self, n: int = 60) -> str:
@@ -170,13 +185,20 @@ class GateReport(BaseModel):
 class Sandbox:
     """A disposable copy of the repository at a commit, plus a hidden test directory."""
 
-    def __init__(self, repo_path: Path, commit: str):
+    def __init__(self, repo_path: Path, commit: str, python: Optional[str] = None):
         self._tmp = tempfile.TemporaryDirectory(prefix="veriloom_sandbox_")
         self.root = Path(self._tmp.name)
         self.app = self.root / "app"
         self.hidden = self.root / "hidden_tests"
         self.hidden.mkdir()
         snapshot_repo(Path(repo_path).resolve(), commit, self.app)
+        # A dedicated target venv (see target_env) gets this copy installed in editable mode,
+        # so the tests import the code under validation rather than an installed release.
+        self.python = python or target_python(Path(repo_path))
+        if self.python:
+            install_copy(self.python, self.app)
+        else:
+            self.python = sys.executable
         self._baseline: Optional[PytestRun] = None
 
     def close(self) -> None:
@@ -208,16 +230,23 @@ class Sandbox:
 
     # -------------------------------------------------------------- pytest
 
-    def pytest(self, targets: List[str], junit: bool = True) -> PytestRun:
+    def pytest(self, targets: List[str], junit: bool = True, outcomes: bool = False) -> PytestRun:
         junit_path = self.root / "junit.xml"
         if junit_path.exists():
             junit_path.unlink()
-        cmd = [sys.executable, "-m", "pytest", *targets, "-q", "-p", "no:cacheprovider",
+        cmd = [self.python, "-m", "pytest", *targets, "-q", "-p", "no:cacheprovider",
                "--rootdir", str(self.app)]
         if junit:
             cmd += [f"--junitxml={junit_path}", "-o", "junit_family=xunit1"]
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         env.pop("PYTHONPATH", None)
+        outcomes_path = self.root / "outcomes.json"
+        if outcomes:
+            if outcomes_path.exists():
+                outcomes_path.unlink()
+            cmd += ["-p", "veriloom_outcomes"]
+            env["PYTHONPATH"] = str(PLUGIN_DIR)
+            env["VERILOOM_OUTCOMES_FILE"] = str(outcomes_path)
         try:
             proc = subprocess.run(cmd, cwd=self.app, env=env, capture_output=True, text=True,
                                   timeout=PYTEST_TIMEOUT_SEC)
@@ -228,6 +257,9 @@ class Sandbox:
         run = PytestRun(exit_code=exit_code, output=output, collection_error=exit_code in (2, 3, 4))
         if junit and junit_path.exists():
             self._parse_junit(junit_path, run)
+        if outcomes and outcomes_path.exists():
+            import json
+            run.nodes = json.loads(outcomes_path.read_text(encoding="utf-8"))
         return run
 
     def _parse_junit(self, path: Path, run: PytestRun) -> None:

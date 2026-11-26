@@ -22,6 +22,12 @@ EXCLUDE_DIRS = {
     "___vc",
     ".vercel",
     "site-packages",
+    # VeriLoom's own working folders: target-repo venvs, clones and generated output
+    ".venvs",
+    ".veriloom",
+    "target_repos",
+    "external_repos",
+    "exports",
 }
 
 
@@ -34,7 +40,8 @@ class ASTAnalyzer:
         for path in repo_path.rglob("*"):
             if path.is_file():
                 # Check if any parent part is excluded or is an egg-info folder
-                if any(part in EXCLUDE_DIRS or part.endswith(".egg-info") for part in path.parts):
+                rel_parts = path.relative_to(repo_path).parts
+                if any(part in EXCLUDE_DIRS or part.endswith(".egg-info") for part in rel_parts):
                     continue
                 files.append(path)
         return sorted(files)

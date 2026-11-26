@@ -119,6 +119,7 @@ class VeriLoomPipeline:
         candidate_index: int = 0,
         custom_task_id: Optional[str] = None,
         export_harbor: bool = False,
+        ideas_path: Optional[Path] = None,
     ) -> PipelineRunResult:
         # Stage 1: Ingestion and Capability Mapping
         log.info("[1] Inspecting repository %s", self.repo_path)
@@ -131,9 +132,13 @@ class VeriLoomPipeline:
         use_llm = not isinstance(provider, OfflineFallbackProvider)
 
         # Stage 2: Candidate Opportunity Discovery
-        opportunities = CandidateOpportunityEngine.discover_opportunities(
-            cap_map, extended_families=use_llm
-        )
+        if ideas_path:
+            from veriloom.task_generation.ideation import FeatureIdeation
+            opportunities = FeatureIdeation.to_opportunities(FeatureIdeation.load(ideas_path))
+        else:
+            opportunities = CandidateOpportunityEngine.discover_opportunities(
+                cap_map, extended_families=use_llm
+            )
         if not opportunities:
             raise RuntimeError("No candidate feature opportunities could be discovered.")
 

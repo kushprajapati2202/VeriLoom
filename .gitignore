@@ -77,3 +77,8 @@ scripts/*narration*.py
 *.webm
 *.mp4
 demo_out/
+
+# Target repositories and their isolated test environments
+.veriloom/
+.venvs/
+target_repos/

@@ -79,6 +79,12 @@ class TaskSpecification(BaseModel):
         description="Exact rules the hidden tests rely on (names, defaults, constants) so the task is solvable",
     )
 
+    public_interface: List[str] = Field(
+        default_factory=list,
+        description="Signatures added or changed by the reference implementation (shown to the solver)",
+    )
+    interface_module: Optional[str] = Field(default=None, description="Import path of the changed module")
+
     @field_validator("behaviour_details", mode="before")
     @classmethod
     def _coerce_details(cls, v):

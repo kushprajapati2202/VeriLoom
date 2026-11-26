@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from veriloom.authoring.interface import interface_diff
 from veriloom.contracts.task_spec import TaskSpecification, as_str_list
 from veriloom.contracts.validation import (
     AcceptanceCoverage,
@@ -41,12 +42,15 @@ from veriloom.validation.sandbox import (
     Mutant,
     Sandbox,
     SandboxValidator,
+    apply_mutant,
     discover_test_targets,
+    module_for,
 )
 
 log = logging.getLogger("veriloom")
 
-MAX_TARGET_CHARS = 60_000
+MAX_TARGET_CHARS = 60_000      # whole-file rewrites
+MAX_EDIT_TARGET_CHARS = 250_000
 
 SYSTEM_PROMPT = """You are an expert software engineer building benchmark tasks for evaluating AI coding agents.
 For a feature specification and the real source of a file in an existing repository, you produce:
@@ -59,7 +63,7 @@ AUTHOR_PROMPT = """# Feature specification
 
 # Repository
 Language: {language}. Framework: {framework}.
-The repository root is the working directory and the Python import root.
+Tests run from the repository root; the package is installed in editable mode.
 Target file: `{target_file}` (import it as `{module}`).
 
 ## Current content of `{target_file}`
@@ -74,38 +78,52 @@ Do not change the signature, defaults or behaviour of anything these tests call.
 ```
 
 # What to produce
-1. NEW_FILE: the COMPLETE new content of `{target_file}` implementing every requirement.
-   Keep all existing code and behaviour intact; add to it. Standard library only, no network.
-2. TEST_FILE: a pytest module, run from the repository root but stored OUTSIDE the repository.
+{impl_instructions}
+2. TEST_FILE: a pytest module, run from the repository root but stored OUTSIDE the repository
+   (so the repository's conftest fixtures are NOT available; build what you need inside the test).
    - Import the feature from `{module}` inside each test function (so a missing name fails that test, not collection).
-   - Test observable behaviour only (return values, raised exception types, state), never private details.
+   - Test observable behaviour only (return values, raised exception types, output, state), never private details.
    - Every requirement needs at least one test that fails on the CURRENT code and passes on yours.
    - Cover the edge cases. Deterministic, fast, no network, no files outside a tmp_path fixture.
 3. META (JSON):
    - "test_file_name": "test_<short_feature_name>.py"
    - "requirement_tests": {{"REQ-001": ["test_name", ...], ...}} covering every requirement id
    - "behaviour_details": precise rules a solver needs to make your tests pass that the specification
-     leaves open: exact function/class names and signatures, defaults, constants, rounding, error types,
-     ordering. Every literal value your tests assert must appear in these sentences, so include worked
-     examples with exact numbers (e.g. "a 50.0 order with SAVE10 costs 45.0"). Do not paste code.
+     leaves open: exact function/class/parameter names and signatures, defaults, constants, message texts,
+     error types, ordering. Every literal value your tests assert must appear in these sentences, so include
+     worked examples with exact values. Do not paste code.
    - "explanation": one paragraph on the implementation.
-   - "mutants": at least 4 faulty variants of YOUR new file, each
+   - "mutants": at least 4 faulty variants of YOUR implementation, each
      {{"id": "MUT-001", "description": "...", "fault_type": "boundary_shift|operator_inversion|condition_omission|value_corruption|missing_check",
-       "find": "exact snippet copied from NEW_FILE that occurs exactly once", "replace": "faulty version"}}.
+       "find": "exact snippet of the NEW code (as it reads after your change) that occurs exactly once in the file", "replace": "faulty version"}}.
      Make them realistic mistakes an agent could make; your tests must fail on each.
 
 # Output format (exactly these four markers, each on its own line, nothing before the first)
 === META ===
 {{...json...}}
-=== NEW_FILE ===
-...complete file...
+=== {impl_marker} ===
+{impl_placeholder}
 === TEST_FILE ===
 ...complete pytest module...
 === END ===
 """
 
+FULL_FILE_INSTRUCTIONS = """1. NEW_FILE: the COMPLETE new content of `{target_file}` implementing every requirement.
+   Keep all existing code and behaviour intact; add to it. Standard library only, no network."""
+
+EDIT_INSTRUCTIONS = """1. EDITS: your change to `{target_file}` as search/replace blocks (the file is too long to repeat).
+   Each block has exactly this shape:
+   <<<<<<< SEARCH
+   lines copied verbatim from the CURRENT file (enough of them to be unique)
+   =======
+   the lines that replace them
+   >>>>>>> REPLACE
+   Blocks are applied in order to the current file shown above; each SEARCH must match exactly once.
+   To add new code, SEARCH for an existing anchor line and repeat it in REPLACE together with the new code.
+   Keep all existing code and behaviour intact. Standard library only, no network."""
+
 REPAIR_PROMPT = """Your previous attempt failed automatic validation. Fix it and return a complete new answer
-in the same four-section format (META, NEW_FILE, TEST_FILE, END).
+in the same four-section format (META, {impl_marker}, TEST_FILE, END).{edit_note}
 
 ## Failed checks
 {failures}
@@ -113,20 +131,21 @@ in the same four-section format (META, NEW_FILE, TEST_FILE, END).
 ## Your previous attempt
 === META ===
 {meta}
-=== NEW_FILE ===
-{new_file}
+=== {impl_marker} ===
+{impl}
 === TEST_FILE ===
 {test_file}
 === END ===
 
 What the checks mean:
 - fail_before: each requirement needs a test that FAILS on the original file.
-- pass_after: all tests must pass with NEW_FILE.
-- regression: NEW_FILE must not break existing tests.
+- pass_after: all tests must pass with your implementation.
+- regression: your implementation must not break existing tests.
 - mutation: tests must fail on each mutant; strengthen tests or fix invalid `find` snippets.
 - clarity: every literal value a test asserts must appear in behaviour_details (or the spec).
 """
 
+EDIT_MODE_MIN_CHARS = 20_000
 
 class AuthoringError(RuntimeError):
     pass
@@ -152,6 +171,32 @@ class _Draft(BaseModel):
     meta: Dict
     new_file: str
     test_file: str
+    edits: Optional[str] = None  # raw search/replace blocks when the model answered in edit mode
+
+
+_EDIT_BLOCK = re.compile(r"^<{5,9} SEARCH[ \t]*\n(.*?)^={5,9}[ \t]*\n(.*?)^>{5,9} REPLACE[ \t]*$",
+                         re.DOTALL | re.MULTILINE)
+
+
+def apply_edits(source: str, edits: str) -> str:
+    """Apply search/replace blocks in order. Each SEARCH must match exactly once
+    (indentation-insensitive fallback, as for mutants)."""
+    blocks = _EDIT_BLOCK.findall(edits)
+    if not blocks:
+        raise AuthoringError("EDITS section contains no <<<<<<< SEARCH / ======= / >>>>>>> REPLACE blocks")
+    out = source
+    for i, (search, replace) in enumerate(blocks, 1):
+        if not search.strip():
+            raise AuthoringError(f"edit block {i} has an empty SEARCH part")
+        mutated, count = apply_mutant(out, search.rstrip("\n"), replace.rstrip("\n"))
+        if mutated is None:
+            head = search.strip().splitlines()[0][:100]
+            raise AuthoringError(
+                f"edit block {i}: SEARCH text starting {head!r} matches {count} times in the current file "
+                "(it must match exactly once; copy the lines verbatim and add neighbouring lines to make it unique)"
+            )
+        out = mutated
+    return out if out.endswith("\n") else out + "\n"
 
 
 def _strip_fence(text: str) -> str:
@@ -160,11 +205,17 @@ def _strip_fence(text: str) -> str:
     return (m.group(1) if m else text).rstrip() + "\n"
 
 
-def parse_draft(raw: str) -> _Draft:
-    sections = re.split(r"^===\s*(META|NEW_FILE|TEST_FILE|END)\s*===\s*$", raw, flags=re.MULTILINE)
+def parse_draft(raw: str, source: Optional[str] = None) -> _Draft:
+    sections = re.split(r"^===\s*(META|NEW_FILE|EDITS|TEST_FILE|END)\s*===\s*$", raw, flags=re.MULTILINE)
     found: Dict[str, str] = {}
     for i in range(1, len(sections) - 1, 2):
         found[sections[i]] = sections[i + 1]
+    edits = None
+    if "EDITS" in found and "NEW_FILE" not in found:
+        if source is None:
+            raise AuthoringError("Response uses EDITS but no original source was supplied")
+        edits = _strip_fence(found["EDITS"])
+        found["NEW_FILE"] = apply_edits(source, edits)
     for key in ("META", "NEW_FILE", "TEST_FILE"):
         if key not in found or not found[key].strip():
             raise AuthoringError(f"Response is missing the === {key} === section")
@@ -176,7 +227,8 @@ def parse_draft(raw: str) -> _Draft:
         if not m:
             raise AuthoringError("META section is not valid JSON")
         meta = json.loads(m.group(0))
-    return _Draft(meta=meta, new_file=_strip_fence(found["NEW_FILE"]), test_file=_strip_fence(found["TEST_FILE"]))
+    new_file = found["NEW_FILE"] if edits is not None else _strip_fence(found["NEW_FILE"])
+    return _Draft(meta=meta, new_file=new_file, test_file=_strip_fence(found["TEST_FILE"]), edits=edits)
 
 
 def spec_text(spec: TaskSpecification, extra_details: Optional[List[str]] = None) -> str:
@@ -249,26 +301,36 @@ class LLMTaskAuthor:
         target = spec.repository_evidence[0].path.replace("\\", "/")
         if not target.endswith(".py"):
             raise AuthoringError(f"Only Python targets are supported, got {target}")
-        module = target[:-3].replace("/", ".")
+        module = module_for(target)
 
         attempts: List[Attempt] = []
         with Sandbox(repo_path, commit) as sb:
             source = sb.read(target)
-            if len(source) > MAX_TARGET_CHARS:
-                raise AuthoringError(f"{target} is {len(source)} chars; too large to rewrite reliably")
+            edit_mode = len(source) > EDIT_MODE_MIN_CHARS
+            limit = MAX_EDIT_TARGET_CHARS if edit_mode else MAX_TARGET_CHARS
+            if len(source) > limit:
+                raise AuthoringError(f"{target} is {len(source)} chars; too large to edit reliably")
             examples = discover_test_targets(sb.app)
             example_path, example_src = _relevant_tests(sb, examples, module)
+            impl_marker = "EDITS" if edit_mode else "NEW_FILE"
 
-            prompt = AUTHOR_PROMPT.format(
-                spec_text=spec_text(spec),
-                language=language,
-                framework=framework or "none",
-                target_file=target,
-                module=module,
-                source=source,
-                example_test_path=example_path,
-                example_test=example_src,
-            )
+            def base_prompt() -> str:
+                return AUTHOR_PROMPT.format(
+                    spec_text=spec_text(spec),
+                    language=language,
+                    framework=framework or "none",
+                    target_file=target,
+                    module=module,
+                    source=source,
+                    example_test_path=example_path,
+                    example_test=example_src,
+                    impl_instructions=(EDIT_INSTRUCTIONS if edit_mode else FULL_FILE_INSTRUCTIONS).format(
+                        target_file=target),
+                    impl_marker=impl_marker,
+                    impl_placeholder="...search/replace blocks..." if edit_mode else "...complete file...",
+                )
+
+            prompt = base_prompt()
 
             draft: Optional[_Draft] = None
             report: Optional[GateReport] = None
@@ -279,13 +341,15 @@ class LLMTaskAuthor:
                          n, self.max_attempts)
                 try:
                     raw = self.provider.generate(prompt, SYSTEM_PROMPT)
-                    draft = parse_draft(raw)
+                    draft = parse_draft(raw, source)
                 except Exception as e:  # malformed output or provider error: ask again
                     attempt.error = f"{type(e).__name__}: {e}"
                     log.info("[author] attempt %d unusable: %s", n, attempt.error[:200])
                     if "FORMAT REMINDER" not in prompt:
                         prompt += ("\n\nFORMAT REMINDER: a previous reply could not be parsed "
-                                   f"({attempt.error}). Use exactly the four === markers.")
+                                   f"({attempt.error}). Use exactly the four === markers"
+                                   + (" and SEARCH blocks copied verbatim from the current file."
+                                      if edit_mode else "."))
                     continue
 
                 details = as_str_list(draft.meta.get("behaviour_details"))
@@ -326,15 +390,14 @@ class LLMTaskAuthor:
                 prompt = REPAIR_PROMPT.format(
                     failures=failures,
                     meta=json.dumps(draft.meta, indent=2),
-                    new_file=draft.new_file,
+                    impl_marker=impl_marker,
+                    impl=draft.edits if edit_mode and draft.edits else draft.new_file,
                     test_file=draft.test_file,
+                    edit_note=("\nYour EDITS are applied to the ORIGINAL file shown above, not to your previous "
+                               "version, so repeat every block you still need." if edit_mode else ""),
                 )
                 # Keep the original context available to the model on repair.
-                prompt = AUTHOR_PROMPT.format(
-                    spec_text=spec_text(spec), language=language, framework=framework or "none",
-                    target_file=target, module=module, source=source,
-                    example_test_path=example_path, example_test=example_src,
-                ) + "\n\n" + prompt
+                prompt = base_prompt() + "\n\n" + prompt
 
         summary = "; ".join(
             f"attempt {a.number}: " + (a.error or ", ".join(f"{g['name']} failed" for g in a.gates if not g["passed"]))
@@ -350,6 +413,8 @@ class LLMTaskAuthor:
     def _result(spec, target, source, draft, test_name, req_tests, details, report, attempts, commit) -> AuthoredTask:
         spec = spec.model_copy(update={
             "behaviour_details": list(spec.behaviour_details) + details,
+            "public_interface": interface_diff(source, draft.new_file),
+            "interface_module": module_for(target),
             "known_limitations": [l for l in spec.known_limitations]
             + ["Reference implementation, tests and mutants authored by LLM and validated in a sandbox."],
         })
@@ -392,11 +457,10 @@ def _gate(name: str, passed: bool, detail: str) -> GateResult:
 
 
 def interface_text(target: str, old: str, new: str) -> str:
-    """Signatures of new public names, as the Harbor instruction will show them."""
-    from veriloom.packaging.harbor_exporter import HarborExporter
+    """Signatures of new or changed public names, as the Harbor instruction will show them."""
+    from veriloom.authoring.interface import interface_text as _diff
 
-    patch = PatchManager.generate_diff({target: old}, {target: new})
-    return "\n".join(sig for _, sigs in HarborExporter._interface_from_patch(patch) for sig in sigs)
+    return _diff(old, new)
 
 
 def to_validation_report(task_id, commit, report: GateReport, coverage, target, test_name) -> ValidationReport:

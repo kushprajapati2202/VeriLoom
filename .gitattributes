@@ -1,0 +1,13 @@
+# Harbor runs task scripts and patches inside Linux containers: never convert them to CRLF,
+# whatever the checkout platform (a CRLF shebang fails with "env: 'bash\r': No such file").
+* text=auto eol=lf
+*.sh text eol=lf
+*.patch text eol=lf
+*.diff text eol=lf
+Dockerfile text eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.mp4 binary
+*.webm binary
+*.wav binary
